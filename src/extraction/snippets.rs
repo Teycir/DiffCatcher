@@ -41,6 +41,10 @@ pub fn build_snippet(
             before_code = fallback_before;
             after_code = fallback_after;
         }
+        if before_code.is_none() && after_code.is_none() {
+            before_code = Some(String::new());
+            after_code = Some(String::new());
+        }
         if before_code.is_none() {
             before_code = after_code.clone();
         }
