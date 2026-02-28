@@ -161,26 +161,6 @@ fn write_diff_summaries(
             }
         }
 
-        for source in &summary.elements {
-            if let Some(target) =
-                diff.file_changes
-                    .iter()
-                    .flat_map(|f| &f.elements)
-                    .find(|candidate| {
-                        candidate.file_path == source.file_path
-                            && candidate.name == source.name
-                            && candidate.kind == source.kind
-                            && candidate.change_type == source.change_type
-                    })
-            {
-                // Keep summary and per-file element records aligned after snippet file generation.
-                // This avoids stale snippet paths in summary serialization.
-                // Safe to clone because ChangedElement is small relative to snippet files.
-                // Rebuild after loop below.
-                let _ = target;
-            }
-        }
-
         // Rebuild summary element list from file changes so snippet paths are present.
         summary.elements = diff
             .file_changes

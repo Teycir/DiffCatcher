@@ -174,8 +174,11 @@ fn global_summary_aggregates_totals_across_all_repo_diffs() {
         timestamp: Utc::now(),
     };
 
-    let summary =
-        GlobalSummary::from_results(PathBuf::from("/tmp/root"), PathBuf::from("/tmp/report"), &[repo]);
+    let summary = GlobalSummary::from_results(
+        PathBuf::from("/tmp/root"),
+        PathBuf::from("/tmp/report"),
+        &[repo],
+    );
 
     assert_eq!(summary.total_elements_changed_across_all_repos, 5);
     assert_eq!(summary.total_security_tagged_elements, 3);
