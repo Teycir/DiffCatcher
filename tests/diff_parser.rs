@@ -66,3 +66,41 @@ rename to src/new_name.rs
         Some("fn greet()")
     );
 }
+
+#[test]
+fn parser_handles_binary_added_file_dev_null_old_side() {
+    let patch = r#"diff --git a/assets/logo.bin b/assets/logo.bin
+new file mode 100644
+index 0000000..1111111
+Binary files /dev/null and b/assets/logo.bin differ
+"#;
+
+    let parsed = parse_unified_diff(patch);
+    assert_eq!(parsed.files.len(), 1);
+    let file = &parsed.files[0];
+    assert!(file.is_binary);
+    assert_eq!(file.old_path, None);
+    assert_eq!(file.new_path, "assets/logo.bin");
+    assert_eq!(file.hunks.len(), 0);
+    assert_eq!(file.insertions, 0);
+    assert_eq!(file.deletions, 0);
+}
+
+#[test]
+fn parser_handles_binary_deleted_file_dev_null_new_side() {
+    let patch = r#"diff --git a/assets/old.bin b/assets/old.bin
+deleted file mode 100644
+index 1111111..0000000
+Binary files a/assets/old.bin and /dev/null differ
+"#;
+
+    let parsed = parse_unified_diff(patch);
+    assert_eq!(parsed.files.len(), 1);
+    let file = &parsed.files[0];
+    assert!(file.is_binary);
+    assert_eq!(file.old_path.as_deref(), Some("assets/old.bin"));
+    assert_eq!(file.new_path, "assets/old.bin");
+    assert_eq!(file.hunks.len(), 0);
+    assert_eq!(file.insertions, 0);
+    assert_eq!(file.deletions, 0);
+}

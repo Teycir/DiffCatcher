@@ -97,8 +97,27 @@ pub fn parse_unified_diff(input: &str) -> ParsedDiff {
         }
 
         if let Some(file) = &mut current_file {
-            if line.starts_with("Binary files ") {
+            if let Some(rest) = line.strip_prefix("Binary files ") {
                 file.is_binary = true;
+                if let Some((left, right_part)) = rest.split_once(" and ") {
+                    let left_path = left.trim();
+                    let right_path = right_part
+                        .strip_suffix(" differ")
+                        .unwrap_or(right_part)
+                        .trim();
+
+                    if left_path == "/dev/null" {
+                        file.old_path = None;
+                    } else {
+                        let normalized = left_path.strip_prefix("a/").unwrap_or(left_path);
+                        file.old_path = Some(normalized.to_string());
+                    }
+
+                    if right_path != "/dev/null" {
+                        let normalized = right_path.strip_prefix("b/").unwrap_or(right_path);
+                        file.new_path = normalized.to_string();
+                    }
+                }
                 continue;
             }
 
