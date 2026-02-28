@@ -37,7 +37,7 @@ fn fetch_mode_transitions_from_up_to_date_to_updated() {
         local.to_string_lossy().as_ref(),
     ]);
 
-    let cfg = processor_config(root, root.join("report"), false);
+    let cfg = processor_config(root, root.join("report"), false, false);
 
     let first = process_repository(&local, &cfg);
     assert!(matches!(first.status, RepoStatus::UpToDate));
@@ -72,12 +72,70 @@ fn fetch_mode_transitions_from_up_to_date_to_updated() {
     assert_ne!(second_pre, second_post);
 }
 
-fn processor_config(root: &Path, report_dir: PathBuf, no_pull: bool) -> ProcessorConfig {
+#[test]
+fn pull_mode_skips_pull_when_up_to_date() {
+    let tmp = tempdir().expect("temp dir");
+    let root = tmp.path();
+
+    let remote = root.join("remote.git");
+    git_raw(&["init", "--bare", remote.to_string_lossy().as_ref()]);
+
+    let seed = root.join("seed");
+    std::fs::create_dir_all(&seed).expect("create seed");
+    git(&seed, &["init"]);
+    git(&seed, &["config", "user.name", "Test"]);
+    git(&seed, &["config", "user.email", "test@example.com"]);
+    std::fs::write(seed.join("lib.rs"), "pub fn v() -> i32 { 1 }\n").expect("write v1");
+    git(&seed, &["add", "."]);
+    git(&seed, &["commit", "-m", "v1"]);
+    git(
+        &seed,
+        &["remote", "add", "origin", remote.to_string_lossy().as_ref()],
+    );
+    git(&seed, &["push", "-u", "origin", "HEAD"]);
+
+    let local = root.join("repo");
+    git_raw(&[
+        "clone",
+        remote.to_string_lossy().as_ref(),
+        local.to_string_lossy().as_ref(),
+    ]);
+
+    let cfg = processor_config(root, root.join("report-pull"), false, true);
+    let result = process_repository(&local, &cfg);
+
+    assert!(matches!(result.status, RepoStatus::UpToDate));
+    let pre = result
+        .pre_pull
+        .as_ref()
+        .expect("pre pull hash should exist")
+        .hash
+        .clone();
+    let post = result
+        .post_pull
+        .as_ref()
+        .expect("post pull hash should exist")
+        .hash
+        .clone();
+    assert_eq!(pre, post);
+    assert!(
+        result.pull_log.contains("pull skipped"),
+        "expected pull skip log, got: {}",
+        result.pull_log
+    );
+}
+
+fn processor_config(
+    root: &Path,
+    report_dir: PathBuf,
+    no_pull: bool,
+    pull_mode: bool,
+) -> ProcessorConfig {
     ProcessorConfig {
         root_dir: root.to_path_buf(),
         report_dir,
         timeout_secs: 30,
-        pull_mode: false,
+        pull_mode,
         force_pull: false,
         pull_strategy: PullStrategy::FfOnly,
         no_pull,
