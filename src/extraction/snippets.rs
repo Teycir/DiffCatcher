@@ -1,4 +1,4 @@
-use crate::extraction::boundary::truncate_with_limit;
+use crate::extraction::boundary::{truncate_with_limit, try_capture_full_element};
 use crate::extraction::elements::DetectedElement;
 use crate::types::RawHunk;
 use crate::types::{CaptureScope, ChangeType, CodeSnippet, SnippetContent};
@@ -43,7 +43,15 @@ pub fn build_snippet(
         None
     } else {
         before_code.map(|code| {
-            let (code, truncated, actual) = truncate_with_limit(&code, options.max_snippet_lines);
+            let full_candidate = try_capture_full_element(&code);
+            let candidate = if let Some(full) = full_candidate {
+                capture_scope = CaptureScope::FullElement;
+                full
+            } else {
+                code
+            };
+            let (code, truncated, actual) =
+                truncate_with_limit(&candidate, options.max_snippet_lines);
             if truncated {
                 capture_scope = CaptureScope::Truncated {
                     actual_lines: actual,
@@ -63,7 +71,15 @@ pub fn build_snippet(
         None
     } else {
         after_code.map(|code| {
-            let (code, truncated, actual) = truncate_with_limit(&code, options.max_snippet_lines);
+            let full_candidate = try_capture_full_element(&code);
+            let candidate = if let Some(full) = full_candidate {
+                capture_scope = CaptureScope::FullElement;
+                full
+            } else {
+                code
+            };
+            let (code, truncated, actual) =
+                truncate_with_limit(&candidate, options.max_snippet_lines);
             if truncated {
                 capture_scope = CaptureScope::Truncated {
                     actual_lines: actual,

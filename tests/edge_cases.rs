@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use git_patrol::cli::PullStrategy;
@@ -124,7 +124,7 @@ fn processor_config(root: &Path, include_detached: bool) -> ProcessorConfig {
     }
 }
 
-fn init_repo_with_commit(path: &PathBuf) {
+fn init_repo_with_commit(path: &Path) {
     run_git(path, &["init"]);
     std::fs::write(path.join("file.txt"), "hello\n").expect("write file");
     run_git(path, &["add", "."]);
