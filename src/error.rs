@@ -28,6 +28,9 @@ pub enum PatrolError {
 
     #[error("regex error: {0}")]
     Regex(#[from] regex::Error),
+
+    #[error("fancy-regex error: {0}")]
+    FancyRegex(#[from] fancy_regex::Error),
 }
 
 pub type Result<T> = std::result::Result<T, PatrolError>;

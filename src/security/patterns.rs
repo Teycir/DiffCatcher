@@ -304,6 +304,127 @@ pub fn builtin_patterns() -> Vec<SecurityTagDefinition> {
                 "role.*admin",
             ],
         ),
+        // ── ZkPM-inspired risky patterns ─────────────────────────────────
+        tag_with_meta(
+            "weak-hashing",
+            TagSeverity::High,
+            1,
+            vec![
+                "md5",
+                "sha1[^_]",
+                "MD5\\.Create",
+                "hashlib\\.md5",
+                "Digest::MD5",
+                "createHash\\(['\"]md5",
+                "createHash\\(['\"]sha1",
+            ],
+            "Use of weak or deprecated hash function (MD5, SHA-1). Prefer SHA-256+ or BLAKE3.",
+            vec!["https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"],
+            Some("May match in comments or string literals referencing algorithm names."),
+        ),
+        tag_with_meta(
+            "hardcoded-secret",
+            TagSeverity::High,
+            1,
+            vec![
+                r#"(?:password|passwd|secret|api_?key|token)\s*=\s*["'][^"']{4,}"#,
+                r#"(?:PASSWORD|SECRET|API_KEY|TOKEN)\s*=\s*["'][^"']{4,}"#,
+            ],
+            "Hardcoded secret or credential literal detected. Use env vars or a vault.",
+            vec!["https://cwe.mitre.org/data/definitions/798.html"],
+            Some("May match test fixtures or example code with placeholder values."),
+        ),
+        tag_with_meta(
+            "tautological-check",
+            TagSeverity::Medium,
+            1,
+            vec![
+                r"if\s*\(\s*true\s*\)",
+                r"if\s*\(\s*false\s*\)",
+                r"while\s*\(\s*true\s*\)",
+                r"\w+\s*===?\s*\w+\s*\|\|\s*true",
+            ],
+            "Always-true/always-false condition detected. May indicate dead code or logic error.",
+            vec!["https://cwe.mitre.org/data/definitions/570.html"],
+            None,
+        ),
+        with_negative(
+            tag_with_meta(
+                "nonce-iv-reuse",
+                TagSeverity::High,
+                2,
+                vec![
+                    "nonce",
+                    "\\biv\\b",
+                    "initialization.vector",
+                    "counter.*encrypt",
+                ],
+                "Multiple nonce/IV references in same element. Verify no reuse across operations.",
+                vec!["https://cwe.mitre.org/data/definitions/323.html"],
+                Some("Flags when 2+ nonce/IV references appear; may be declaration + usage."),
+            ),
+            vec!["test_nonce", "mock_iv", "example"],
+        ),
+        tag_with_meta(
+            "operator-misuse",
+            TagSeverity::Medium,
+            1,
+            vec![
+                r"[^!=<>]==[^=]",
+                r"if\s*\([^)]*=[^=]",
+            ],
+            "Potential operator misuse: == instead of === or assignment in conditional.",
+            vec![
+                "https://cwe.mitre.org/data/definitions/480.html",
+                "https://cwe.mitre.org/data/definitions/481.html",
+            ],
+            Some("Common in JS/TS. May match legitimate loose equality in other languages."),
+        ),
+        tag_with_meta(
+            "missing-error-propagation",
+            TagSeverity::Medium,
+            1,
+            vec![
+                r"catch\s*\(\s*\w*\s*\)\s*\{\s*\}",
+                r"except:\s*$",
+                r"except\s+Exception.*:\s*pass",
+                r"\.catch\(\s*\(\)\s*=>\s*\{\s*\}\s*\)",
+                r"rescue\s*$",
+            ],
+            "Empty catch/except block swallows errors silently. Log or re-raise.",
+            vec!["https://cwe.mitre.org/data/definitions/390.html"],
+            None,
+        ),
+        tag_with_meta(
+            "command-injection",
+            TagSeverity::High,
+            1,
+            vec![
+                r"os\.system\(",
+                r"subprocess\.(?:call|run|Popen)\([^)]*shell\s*=\s*True",
+                r"exec\(.*\+",
+                r"child_process\.exec\(",
+                r"Runtime\.getRuntime\(\)\.exec\(",
+                r"system\([^)]*\$",
+            ],
+            "Potential command injection via shell execution with dynamic input.",
+            vec!["https://cwe.mitre.org/data/definitions/78.html"],
+            Some("May match safe usages with static strings."),
+        ),
+        tag_with_meta(
+            "path-traversal",
+            TagSeverity::High,
+            1,
+            vec![
+                r"\.\./",
+                r"\\\.\\\.\\\\",
+                r"path\.join\([^)]*(?:req|input|param|user)",
+                r"os\.path\.join\([^)]*(?:request|input|param)",
+            ],
+            "Potential path traversal via unvalidated path components.",
+            vec!["https://cwe.mitre.org/data/definitions/22.html"],
+            Some("May match legitimate relative path references in comments or docs."),
+        ),
     ]
 }
 
@@ -320,6 +441,31 @@ fn tag(
         description: tag.to_string(),
         severity,
         min_matches,
+        pattern_kind: None,
+        references: Vec::new(),
+        false_positive_note: None,
+    }
+}
+
+fn tag_with_meta(
+    tag: &str,
+    severity: TagSeverity,
+    min_matches: u32,
+    patterns: Vec<&str>,
+    description: &str,
+    references: Vec<&str>,
+    false_positive_note: Option<&str>,
+) -> SecurityTagDefinition {
+    SecurityTagDefinition {
+        tag: tag.to_string(),
+        patterns: patterns.into_iter().map(ToString::to_string).collect(),
+        negative_patterns: Vec::new(),
+        description: description.to_string(),
+        severity,
+        min_matches,
+        pattern_kind: None,
+        references: references.into_iter().map(ToString::to_string).collect(),
+        false_positive_note: false_positive_note.map(ToString::to_string),
     }
 }
 

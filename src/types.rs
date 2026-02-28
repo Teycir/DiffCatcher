@@ -181,6 +181,13 @@ pub enum TagSeverity {
     Info,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PatternKind {
+    Regex,
+    FancyRegex,
+    Literal,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityTagDefinition {
     pub tag: String,
@@ -189,6 +196,12 @@ pub struct SecurityTagDefinition {
     pub description: String,
     pub severity: TagSeverity,
     pub min_matches: u32,
+    #[serde(default)]
+    pub pattern_kind: Option<PatternKind>,
+    #[serde(default)]
+    pub references: Vec<String>,
+    #[serde(default)]
+    pub false_positive_note: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

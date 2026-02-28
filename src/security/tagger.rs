@@ -1,19 +1,35 @@
 use std::collections::BTreeMap;
 
+use fancy_regex::Regex as FancyRegex;
 use rayon::prelude::*;
 use regex::Regex;
 
 use crate::error::Result;
 use crate::types::{
-    ChangeType, FileChangeDetail, HighAttentionItem, SecurityReview, SecurityTagDefinition,
-    TagSeverity,
+    ChangeType, FileChangeDetail, HighAttentionItem, PatternKind, SecurityReview,
+    SecurityTagDefinition, TagSeverity,
 };
+
+#[derive(Debug)]
+enum CompiledPattern {
+    Standard(Regex),
+    Fancy(FancyRegex),
+}
+
+impl CompiledPattern {
+    fn is_match(&self, text: &str) -> bool {
+        match self {
+            CompiledPattern::Standard(re) => re.is_match(text),
+            CompiledPattern::Fancy(re) => re.is_match(text).unwrap_or(false),
+        }
+    }
+}
 
 #[derive(Debug)]
 struct CompiledTag {
     def: SecurityTagDefinition,
-    patterns: Vec<Regex>,
-    negative_patterns: Vec<Regex>,
+    patterns: Vec<CompiledPattern>,
+    negative_patterns: Vec<CompiledPattern>,
 }
 
 pub fn tag_file_changes(
@@ -34,6 +50,20 @@ pub fn tag_file_changes(
     Ok(review)
 }
 
+fn compile_pattern(pattern: &str, kind: Option<PatternKind>) -> Result<CompiledPattern> {
+    let pat = format!("(?i){}", pattern);
+    match kind {
+        Some(PatternKind::FancyRegex) => {
+            let re = FancyRegex::new(&pat)?;
+            Ok(CompiledPattern::Fancy(re))
+        }
+        _ => {
+            let re = Regex::new(&pat)?;
+            Ok(CompiledPattern::Standard(re))
+        }
+    }
+}
+
 fn compile_tags(defs: &[SecurityTagDefinition]) -> Result<Vec<CompiledTag>> {
     let mut compiled = Vec::with_capacity(defs.len());
 
@@ -41,14 +71,14 @@ fn compile_tags(defs: &[SecurityTagDefinition]) -> Result<Vec<CompiledTag>> {
         let patterns = def
             .patterns
             .iter()
-            .map(|pattern| Regex::new(&format!("(?i){}", pattern)))
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .map(|pattern| compile_pattern(pattern, def.pattern_kind))
+            .collect::<Result<Vec<_>>>()?;
 
         let negative_patterns = def
             .negative_patterns
             .iter()
-            .map(|pattern| Regex::new(&format!("(?i){}", pattern)))
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .map(|pattern| compile_pattern(pattern, def.pattern_kind))
+            .collect::<Result<Vec<_>>>()?;
 
         compiled.push(CompiledTag {
             def: def.clone(),

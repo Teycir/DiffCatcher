@@ -4,7 +4,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::error::{PatrolError, Result};
-use crate::types::{SecurityTagDefinition, TagSeverity};
+use crate::types::{PatternKind, SecurityTagDefinition, TagSeverity};
 
 #[derive(Debug, Deserialize)]
 struct CustomConfig {
@@ -23,6 +23,12 @@ struct CustomTag {
     negative_patterns: Vec<String>,
     #[serde(default)]
     min_matches: Option<u32>,
+    #[serde(default)]
+    pattern_kind: Option<PatternKind>,
+    #[serde(default)]
+    references: Vec<String>,
+    #[serde(default)]
+    false_positive_note: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,6 +75,9 @@ pub fn load_custom_patterns(path: &Path) -> Result<CustomPatternSet> {
             description: tag.description,
             severity: tag.severity,
             min_matches: tag.min_matches.unwrap_or(1),
+            pattern_kind: tag.pattern_kind,
+            references: tag.references,
+            false_positive_note: tag.false_positive_note,
         })
         .collect::<Vec<_>>();
 
