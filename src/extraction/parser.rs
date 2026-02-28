@@ -1,3 +1,4 @@
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::types::RawHunk;
@@ -17,9 +18,13 @@ pub struct ParsedDiff {
     pub files: Vec<ParsedFileDiff>,
 }
 
+static HUNK_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@\s*(.*)$")
+        .expect("valid regex")
+});
+
 pub fn parse_unified_diff(input: &str) -> ParsedDiff {
-    let hunk_re = Regex::new(r"^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@\s*(.*)$")
-        .expect("valid regex");
+    let hunk_re = &*HUNK_RE;
 
     let mut parsed = ParsedDiff::default();
     let mut current_file: Option<ParsedFileDiff> = None;
@@ -29,7 +34,6 @@ pub fn parse_unified_diff(input: &str) -> ParsedDiff {
         if let Some(rest) = line.strip_prefix("diff --git ") {
             if let Some(mut file) = current_file.take() {
                 if let Some(hunk) = current_hunk.take() {
-                    finalize_hunk(&mut hunk.clone());
                     file.hunks.push(hunk);
                 }
                 parsed.files.push(file);
@@ -134,5 +138,3 @@ pub fn parse_unified_diff(input: &str) -> ParsedDiff {
 
     parsed
 }
-
-fn finalize_hunk(_hunk: &mut RawHunk) {}
