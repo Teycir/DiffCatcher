@@ -128,73 +128,73 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                 status = RepoStatus::DirtySkipped;
                 pull_log.push_str("dirty repo, pull skipped\n");
             } else {
-                let mut stashed = false;
-                if pre_state.dirty
-                    && cfg.force_pull
-                    && let Ok(stash_out) = run_git(
-                        repo_path,
-                        cfg.timeout_secs,
-                        &["stash", "push", "-m", "git-patrol auto-stash"],
-                    )
+                let should_pull = match should_run_pull(repo_path, cfg.timeout_secs, &mut pull_log)
                 {
-                    pull_log.push_str(&stash_out.stdout);
-                    if !stash_out.stderr.is_empty() {
-                        pull_log.push('\n');
-                        pull_log.push_str(&stash_out.stderr);
-                    }
-                    stashed = stash_out.ok();
-                }
-
-                let pull_args = ["pull", cfg.pull_strategy.as_git_flag()];
-                match run_git(repo_path, cfg.timeout_secs, &pull_args) {
-                    Ok(out) => {
-                        if !out.stdout.is_empty() {
-                            pull_log.push_str(&out.stdout);
-                            pull_log.push('\n');
-                        }
-                        if !out.stderr.is_empty() {
-                            pull_log.push_str(&out.stderr);
-                            pull_log.push('\n');
-                        }
-
-                        if out.ok() {
-                            if let Ok(new_state) = capture_repo_state(repo_path, cfg.timeout_secs, false) {
-                                post_commit = new_state.commit;
-                                status = if pre_commit.hash == post_commit.hash {
-                                    RepoStatus::UpToDate
-                                } else {
-                                    RepoStatus::Updated
-                                };
-                            }
-                        } else {
-                            let msg = if out.stderr.is_empty() {
-                                out.stdout
-                            } else {
-                                out.stderr
-                            };
-                            status = RepoStatus::PullFailed { error: msg.clone() };
-                            errors.push(msg);
-                        }
-                    }
-                    Err(err) => {
+                    Ok(value) => value,
+                    Err(message) => {
                         status = RepoStatus::PullFailed {
-                            error: err.to_string(),
+                            error: message.clone(),
                         };
-                        errors.push(err.to_string());
+                        errors.push(message);
+                        false
                     }
-                }
+                };
 
-                if stashed
-                    && let Ok(pop_out) = run_git(repo_path, cfg.timeout_secs, &["stash", "pop"])
-                {
-                    if !pop_out.stdout.is_empty() {
-                        pull_log.push_str(&pop_out.stdout);
-                        pull_log.push('\n');
+                if should_pull {
+                    let mut stashed = false;
+                    if pre_state.dirty
+                        && cfg.force_pull
+                        && let Ok(stash_out) = run_git(
+                            repo_path,
+                            cfg.timeout_secs,
+                            &["stash", "push", "-m", "git-patrol auto-stash"],
+                        )
+                    {
+                        append_git_output(&mut pull_log, &stash_out);
+                        stashed = stash_out.ok();
                     }
-                    if !pop_out.stderr.is_empty() {
-                        pull_log.push_str(&pop_out.stderr);
-                        pull_log.push('\n');
+
+                    let pull_args = ["pull", cfg.pull_strategy.as_git_flag()];
+                    match run_git(repo_path, cfg.timeout_secs, &pull_args) {
+                        Ok(out) => {
+                            append_git_output(&mut pull_log, &out);
+
+                            if out.ok() {
+                                if let Ok(new_state) =
+                                    capture_repo_state(repo_path, cfg.timeout_secs, false)
+                                {
+                                    post_commit = new_state.commit;
+                                    status = if pre_commit.hash == post_commit.hash {
+                                        RepoStatus::UpToDate
+                                    } else {
+                                        RepoStatus::Updated
+                                    };
+                                }
+                            } else {
+                                let msg = if out.stderr.is_empty() {
+                                    out.stdout
+                                } else {
+                                    out.stderr
+                                };
+                                status = RepoStatus::PullFailed { error: msg.clone() };
+                                errors.push(msg);
+                            }
+                        }
+                        Err(err) => {
+                            status = RepoStatus::PullFailed {
+                                error: err.to_string(),
+                            };
+                            errors.push(err.to_string());
+                        }
                     }
+
+                    if stashed
+                        && let Ok(pop_out) = run_git(repo_path, cfg.timeout_secs, &["stash", "pop"])
+                    {
+                        append_git_output(&mut pull_log, &pop_out);
+                    }
+                } else {
+                    status = RepoStatus::UpToDate;
                 }
             }
         } else {
@@ -372,6 +372,102 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
     }
 }
 
+fn should_run_pull(
+    repo_path: &Path,
+    timeout_secs: u64,
+    pull_log: &mut String,
+) -> Result<bool, String> {
+    let upstream_out = run_git(
+        repo_path,
+        timeout_secs,
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        ],
+    )
+    .map_err(|err| err.to_string())?;
+    append_git_output(pull_log, &upstream_out);
+
+    if !upstream_out.ok() || upstream_out.stdout.is_empty() {
+        pull_log.push_str("upstream not configured; running pull directly\n");
+        return Ok(true);
+    }
+
+    let upstream_ref = upstream_out.stdout.trim().to_string();
+    let remote = upstream_ref.split('/').next().unwrap_or("origin");
+    let fetch_out =
+        run_git(repo_path, timeout_secs, &["fetch", remote]).map_err(|err| err.to_string())?;
+    append_git_output(pull_log, &fetch_out);
+    if !fetch_out.ok() {
+        let msg = if fetch_out.stderr.is_empty() {
+            fetch_out.stdout
+        } else {
+            fetch_out.stderr
+        };
+        return Err(format!("git fetch {} failed: {}", remote, msg));
+    }
+
+    let divergence_out = run_git(
+        repo_path,
+        timeout_secs,
+        &[
+            "rev-list",
+            "--left-right",
+            "--count",
+            &format!("HEAD...{}", upstream_ref),
+        ],
+    )
+    .map_err(|err| err.to_string())?;
+    append_git_output(pull_log, &divergence_out);
+
+    if !divergence_out.ok() {
+        pull_log.push_str("could not determine ahead/behind state; running pull directly\n");
+        return Ok(true);
+    }
+
+    let counts = divergence_out.stdout.split_whitespace().collect::<Vec<_>>();
+    if counts.len() != 2 {
+        pull_log.push_str("unexpected ahead/behind output; running pull directly\n");
+        return Ok(true);
+    }
+
+    let ahead = counts[0].parse::<u64>();
+    let behind = counts[1].parse::<u64>();
+    if let (Ok(ahead), Ok(behind)) = (ahead, behind) {
+        if behind == 0 {
+            if ahead == 0 {
+                pull_log.push_str(&format!(
+                    "already up to date with {}; pull skipped\n",
+                    upstream_ref
+                ));
+            } else {
+                pull_log.push_str(&format!(
+                    "local branch is ahead of {}; pull skipped\n",
+                    upstream_ref
+                ));
+            }
+            return Ok(false);
+        }
+        return Ok(true);
+    }
+
+    pull_log.push_str("failed to parse ahead/behind counts; running pull directly\n");
+    Ok(true)
+}
+
+fn append_git_output(pull_log: &mut String, out: &crate::git::commands::GitCommandOutput) {
+    if !out.stdout.is_empty() {
+        pull_log.push_str(&out.stdout);
+        pull_log.push('\n');
+    }
+    if !out.stderr.is_empty() {
+        pull_log.push_str(&out.stderr);
+        pull_log.push('\n');
+    }
+}
+
 fn build_pairs(
     repo_path: &Path,
     cfg: &ProcessorConfig,
@@ -472,8 +568,6 @@ fn apply_git_show_diffonly_fallback(
         }
 
         for element in &mut file.elements {
-            element.snippet.before = None;
-            element.snippet.after = None;
             element.snippet.capture_scope = crate::types::CaptureScope::DiffOnly;
         }
     }
@@ -509,48 +603,71 @@ fn fetch_file_content(
 #[derive(Debug, Clone)]
 struct ShowFileCache {
     capacity: usize,
-    map: HashMap<(String, String), Option<String>>,
-    order: VecDeque<(String, String)>,
+    stamp: u64,
+    map: HashMap<(String, String), CacheEntry>,
+    order: VecDeque<((String, String), u64)>,
+}
+
+#[derive(Debug, Clone)]
+struct CacheEntry {
+    value: Option<String>,
+    stamp: u64,
 }
 
 impl ShowFileCache {
     fn new(capacity: usize) -> Self {
+        assert!(capacity > 0, "show-file cache capacity must be > 0");
         Self {
-            capacity: capacity.max(1),
+            capacity,
+            stamp: 0,
             map: HashMap::new(),
             order: VecDeque::new(),
         }
     }
 
     fn get(&mut self, key: &(String, String)) -> Option<Option<String>> {
-        let value = self.map.get(key)?.clone();
-        self.touch(key);
-        Some(value)
+        let stamp = self.next_stamp();
+        let entry = self.map.get_mut(key)?;
+        entry.stamp = stamp;
+        self.order.push_back((key.clone(), stamp));
+        Some(entry.value.clone())
     }
 
     fn insert(&mut self, key: (String, String), value: Option<String>) {
-        let exists = self.map.contains_key(&key);
-        self.map.insert(key.clone(), value);
-        if exists {
-            self.touch(&key);
-            return;
+        let stamp = self.next_stamp();
+        if let Some(entry) = self.map.get_mut(&key) {
+            entry.value = value;
+            entry.stamp = stamp;
+        } else {
+            self.map.insert(key.clone(), CacheEntry { value, stamp });
         }
+        self.order.push_back((key, stamp));
+        self.evict_if_needed();
+    }
 
-        self.order.push_back(key.clone());
+    fn next_stamp(&mut self) -> u64 {
+        self.stamp = self.stamp.wrapping_add(1);
+        if self.stamp == 0 {
+            self.stamp = 1;
+        }
+        self.stamp
+    }
+
+    fn evict_if_needed(&mut self) {
         while self.map.len() > self.capacity {
-            if let Some(oldest) = self.order.pop_front() {
-                self.map.remove(&oldest);
+            if let Some((oldest, stamp)) = self.order.pop_front() {
+                let should_remove = self
+                    .map
+                    .get(&oldest)
+                    .map(|entry| entry.stamp == stamp)
+                    .unwrap_or(false);
+                if should_remove {
+                    self.map.remove(&oldest);
+                }
             } else {
                 break;
             }
         }
-    }
-
-    fn touch(&mut self, key: &(String, String)) {
-        if let Some(pos) = self.order.iter().position(|entry| entry == key) {
-            self.order.remove(pos);
-        }
-        self.order.push_back(key.clone());
     }
 }
 
