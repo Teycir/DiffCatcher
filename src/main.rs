@@ -55,6 +55,12 @@ fn run() -> Result<i32> {
     let mut repos = discover_repositories(&cli.root_dir, &scan_options)?;
     repos.sort();
 
+    if cli.verbose && !cli.quiet {
+        for repo in &repos {
+            println!("{}", repo.display());
+        }
+    }
+
     if cli.incremental {
         repos = filter_incremental_repos(&report_dir, repos, cli.timeout)?;
     }

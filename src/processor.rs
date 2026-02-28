@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -22,6 +22,7 @@ use crate::types::{
 };
 
 const MAX_PATCH_BYTES: usize = 50 * 1024 * 1024;
+const SHOW_FILE_CACHE_CAPACITY: usize = 2048;
 
 #[derive(Debug, Clone)]
 pub struct ProcessorConfig {
@@ -250,7 +251,7 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
         let _ = fs::create_dir_all(&diff_dir);
 
         let diff_pairs = build_pairs(repo_path, cfg, &pre_commit, &post_commit, &status);
-        let mut retrieval_cache: HashMap<(String, String), Option<String>> = HashMap::new();
+        let mut retrieval_cache = ShowFileCache::new(SHOW_FILE_CACHE_CAPACITY);
 
         for pair in diff_pairs {
             if !safe_diff_pair(repo_path, cfg.timeout_secs, &pair) {
@@ -432,7 +433,7 @@ fn apply_git_show_diffonly_fallback(
     from_commit: &str,
     to_commit: &str,
     file_changes: &mut [FileChangeDetail],
-    cache: &mut HashMap<(String, String), Option<String>>,
+    cache: &mut ShowFileCache,
     errors: &mut Vec<String>,
 ) {
     for file in file_changes {
@@ -483,12 +484,12 @@ fn fetch_file_content(
     timeout_secs: u64,
     commit: &str,
     path: &str,
-    cache: &mut HashMap<(String, String), Option<String>>,
+    cache: &mut ShowFileCache,
     errors: &mut Vec<String>,
 ) -> Option<String> {
     let key = (commit.to_string(), path.to_string());
     if let Some(cached) = cache.get(&key) {
-        return cached.clone();
+        return cached;
     }
 
     let content = match show_file(repo_path, commit, path, timeout_secs) {
@@ -503,6 +504,54 @@ fn fetch_file_content(
     };
     cache.insert(key, content.clone());
     content
+}
+
+#[derive(Debug, Clone)]
+struct ShowFileCache {
+    capacity: usize,
+    map: HashMap<(String, String), Option<String>>,
+    order: VecDeque<(String, String)>,
+}
+
+impl ShowFileCache {
+    fn new(capacity: usize) -> Self {
+        Self {
+            capacity: capacity.max(1),
+            map: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    fn get(&mut self, key: &(String, String)) -> Option<Option<String>> {
+        let value = self.map.get(key)?.clone();
+        self.touch(key);
+        Some(value)
+    }
+
+    fn insert(&mut self, key: (String, String), value: Option<String>) {
+        let exists = self.map.contains_key(&key);
+        self.map.insert(key.clone(), value);
+        if exists {
+            self.touch(&key);
+            return;
+        }
+
+        self.order.push_back(key.clone());
+        while self.map.len() > self.capacity {
+            if let Some(oldest) = self.order.pop_front() {
+                self.map.remove(&oldest);
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn touch(&mut self, key: &(String, String)) {
+        if let Some(pos) = self.order.iter().position(|entry| entry == key) {
+            self.order.remove(pos);
+        }
+        self.order.push_back(key.clone());
+    }
 }
 
 fn file_level_fallback(
