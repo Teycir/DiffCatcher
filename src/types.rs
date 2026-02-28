@@ -350,6 +350,15 @@ impl GlobalSummary {
                 RepoStatus::Skipped { .. } => summary.skipped += 1,
             }
 
+            for diff in &repo.diffs {
+                if let Some(es) = &diff.element_summary {
+                    summary.total_elements_changed_across_all_repos += es.total_elements;
+                }
+                if let Some(sr) = &diff.security_review {
+                    summary.total_security_tagged_elements += sr.total_security_tagged_elements;
+                }
+            }
+
             let latest = repo.diffs.first().map(|diff| {
                 let mut added = 0;
                 let mut modified = 0;
@@ -358,14 +367,12 @@ impl GlobalSummary {
                     added = *es.by_change_type.get(&ChangeType::Added).unwrap_or(&0);
                     modified = *es.by_change_type.get(&ChangeType::Modified).unwrap_or(&0);
                     removed = *es.by_change_type.get(&ChangeType::Removed).unwrap_or(&0);
-                    summary.total_elements_changed_across_all_repos += es.total_elements;
                 }
                 let sec = diff
                     .security_review
                     .as_ref()
                     .map(|sr| sr.total_security_tagged_elements)
                     .unwrap_or(0);
-                summary.total_security_tagged_elements += sec;
 
                 RepoLatestDiffSummary {
                     files_changed: diff.files_changed,

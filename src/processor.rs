@@ -56,7 +56,7 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
     let mut pull_log = String::new();
     let mut errors = Vec::new();
 
-    let pre_state = match capture_repo_state(repo_path, cfg.timeout_secs) {
+    let pre_state = match capture_repo_state(repo_path, cfg.timeout_secs, cfg.pull_mode) {
         Ok(state) => state,
         Err(err) => {
             return RepoResult {
@@ -158,7 +158,7 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                         }
 
                         if out.ok() {
-                            if let Ok(new_state) = capture_repo_state(repo_path, cfg.timeout_secs) {
+                            if let Ok(new_state) = capture_repo_state(repo_path, cfg.timeout_secs, false) {
                                 post_commit = new_state.commit;
                                 status = if pre_commit.hash == post_commit.hash {
                                     RepoStatus::UpToDate

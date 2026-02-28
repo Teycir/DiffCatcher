@@ -8,7 +8,7 @@ use git_patrol::security::overview::build_global_security_overview;
 use git_patrol::types::{
     CaptureScope, ChangeType, ChangedElement, CodeSnippet, CommitInfo, DiffResult, ElementKind,
     ElementSummary, FileChangeDetail, FileStatus, GlobalSummary, KindCounts, Language, RepoResult,
-    RepoStatus, SecurityReview, SnippetContent,
+    RepoStatus, SecurityReview, SnippetContent, TagSeverity,
 };
 use tempfile::tempdir;
 
@@ -153,6 +153,74 @@ fn report_writer_outputs_expected_structure() {
     assert!(report_dir.join("security_overview.json").exists());
     assert!(report_dir.join("security_overview.txt").exists());
     assert!(report_dir.join("security_overview.md").exists());
+}
+
+#[test]
+fn global_summary_aggregates_totals_across_all_repo_diffs() {
+    let latest = diff_with_counts("N_vs_N-1", 2, 1);
+    let previous = diff_with_counts("N-1_vs_N-2", 3, 2);
+
+    let repo = RepoResult {
+        repo_path: PathBuf::from("/tmp/example/repo"),
+        repo_name: "repo".to_string(),
+        report_folder_name: "repo".to_string(),
+        branch: "main".to_string(),
+        status: RepoStatus::Updated,
+        pre_pull: Some(commit("aaaa1111", "aaaa111")),
+        post_pull: Some(commit("bbbb2222", "bbbb222")),
+        diffs: vec![latest, previous],
+        pull_log: "fetch ok".to_string(),
+        errors: Vec::new(),
+        timestamp: Utc::now(),
+    };
+
+    let summary =
+        GlobalSummary::from_results(PathBuf::from("/tmp/root"), PathBuf::from("/tmp/report"), &[repo]);
+
+    assert_eq!(summary.total_elements_changed_across_all_repos, 5);
+    assert_eq!(summary.total_security_tagged_elements, 3);
+
+    let latest_diff = summary.repos[0]
+        .latest_diff
+        .as_ref()
+        .expect("latest diff should exist");
+    assert_eq!(latest_diff.elements_added, 2);
+    assert_eq!(latest_diff.security_tagged, 1);
+}
+
+fn diff_with_counts(label: &str, elements: u32, security_tagged: u32) -> DiffResult {
+    let mut by_change_type = BTreeMap::new();
+    by_change_type.insert(ChangeType::Added, elements);
+
+    DiffResult {
+        label: label.to_string(),
+        from_commit: commit("aaaa1111", "aaaa111"),
+        to_commit: commit("bbbb2222", "bbbb222"),
+        files_changed: 1,
+        insertions: elements,
+        deletions: 0,
+        file_changes: Vec::new(),
+        element_summary: Some(ElementSummary {
+            total_elements: elements,
+            by_change_type,
+            by_kind: BTreeMap::new(),
+            elements: Vec::new(),
+            top_elements: Vec::new(),
+        }),
+        security_review: Some(SecurityReview {
+            total_security_tagged_elements: security_tagged,
+            by_tag: BTreeMap::new(),
+            by_severity: BTreeMap::from([(TagSeverity::Info, security_tagged)]),
+            high_attention_items: Vec::new(),
+            flagged_elements: Vec::new(),
+        }),
+        patch_filename: format!("diffs/diff_{label}.patch"),
+        changes_filename: format!("diffs/changes_{label}.txt"),
+        summary_json_filename: None,
+        summary_txt_filename: None,
+        summary_md_filename: None,
+        snippets_dir: None,
+    }
 }
 
 fn commit(hash: &str, short_hash: &str) -> CommitInfo {

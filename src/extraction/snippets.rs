@@ -33,7 +33,21 @@ pub fn build_snippet(
         };
     }
 
-    let (before_code, after_code) = split_before_after(&relevant);
+    let (mut before_code, mut after_code) = split_before_after(&relevant);
+
+    if matches!(element.change_type, ChangeType::Modified) {
+        if before_code.is_none() && after_code.is_none() {
+            let (fallback_before, fallback_after) = split_before_after_from_lines(&diff_lines);
+            before_code = fallback_before;
+            after_code = fallback_after;
+        }
+        if before_code.is_none() {
+            before_code = after_code.clone();
+        }
+        if after_code.is_none() {
+            after_code = before_code.clone();
+        }
+    }
 
     let mut capture_scope = CaptureScope::HunkWithContext {
         context_lines: options.context_lines,
@@ -148,6 +162,35 @@ fn split_before_after(hunks: &[&RawHunk]) -> (Option<String>, Option<String>) {
                 before.push(line.to_string());
                 after.push(line.to_string());
             }
+        }
+    }
+
+    let before = if before.is_empty() {
+        None
+    } else {
+        Some(before.join("\n"))
+    };
+    let after = if after.is_empty() {
+        None
+    } else {
+        Some(after.join("\n"))
+    };
+
+    (before, after)
+}
+
+fn split_before_after_from_lines(lines: &str) -> (Option<String>, Option<String>) {
+    let mut before = Vec::new();
+    let mut after = Vec::new();
+
+    for line in lines.lines() {
+        if let Some(rest) = line.strip_prefix('-') {
+            before.push(rest.to_string());
+        } else if let Some(rest) = line.strip_prefix('+') {
+            after.push(rest.to_string());
+        } else if let Some(rest) = line.strip_prefix(' ') {
+            before.push(rest.to_string());
+            after.push(rest.to_string());
         }
     }
 

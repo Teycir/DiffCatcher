@@ -13,7 +13,7 @@ pub struct RepoState {
     pub dirty: bool,
 }
 
-pub fn capture_repo_state(repo: &Path, timeout_secs: u64) -> Result<RepoState> {
+pub fn capture_repo_state(repo: &Path, timeout_secs: u64, detect_dirty: bool) -> Result<RepoState> {
     let hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "HEAD"])?;
     let short_hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "--short", "HEAD"])?;
     let full_message = run_git_expect_stdout(repo, timeout_secs, &["log", "-1", "--pretty=%B"])?;
@@ -27,9 +27,13 @@ pub fn capture_repo_state(repo: &Path, timeout_secs: u64) -> Result<RepoState> {
     let ts = run_git_expect_stdout(repo, timeout_secs, &["log", "-1", "--pretty=%ct"])?;
     let ts_i = ts.parse::<i64>().unwrap_or(0);
     let branch = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "--abbrev-ref", "HEAD"])?;
-    let dirty = !run_git_expect_stdout(repo, timeout_secs, &["status", "--porcelain"])?
-        .trim()
-        .is_empty();
+    let dirty = if detect_dirty {
+        !run_git_expect_stdout(repo, timeout_secs, &["status", "--porcelain"])?
+            .trim()
+            .is_empty()
+    } else {
+        false
+    };
 
     let commit = CommitInfo {
         hash,
