@@ -44,6 +44,189 @@ pub struct ProcessorConfig {
     pub verbose: bool,
 }
 
+pub fn process_diff_refs(
+    repo_path: &Path,
+    report_dir: &Path,
+    base_ref: &str,
+    head_ref: &str,
+    timeout_secs: u64,
+    extraction: &ExtractionOptions,
+    no_security_tags: bool,
+    include_test_security: bool,
+    tag_definitions: &[SecurityTagDefinition],
+    _verbose: bool,
+) -> RepoResult {
+    let repo_name = repo_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("repo")
+        .to_string();
+
+    let report_folder_name = repo_name.clone();
+    let mut errors = Vec::new();
+
+    let base_commit = match capture_commit(repo_path, timeout_secs, base_ref) {
+        Ok(c) => c,
+        Err(err) => {
+            return RepoResult {
+                repo_path: repo_path.to_path_buf(),
+                repo_name,
+                report_folder_name,
+                branch: base_ref.to_string(),
+                status: RepoStatus::FetchFailed {
+                    error: format!("cannot resolve base ref '{}': {}", base_ref, err),
+                },
+                pre_pull: None,
+                post_pull: None,
+                diffs: Vec::new(),
+                pull_log: String::new(),
+                errors: vec![err.to_string()],
+                timestamp: Utc::now(),
+            };
+        }
+    };
+
+    let head_commit = match capture_commit(repo_path, timeout_secs, head_ref) {
+        Ok(c) => c,
+        Err(err) => {
+            return RepoResult {
+                repo_path: repo_path.to_path_buf(),
+                repo_name,
+                report_folder_name,
+                branch: head_ref.to_string(),
+                status: RepoStatus::FetchFailed {
+                    error: format!("cannot resolve head ref '{}': {}", head_ref, err),
+                },
+                pre_pull: Some(base_commit),
+                post_pull: None,
+                diffs: Vec::new(),
+                pull_log: String::new(),
+                errors: vec![err.to_string()],
+                timestamp: Utc::now(),
+            };
+        }
+    };
+
+    let pair = DiffPair {
+        label: format!("{}_vs_{}", head_ref.replace('/', "-"), base_ref.replace('/', "-")),
+        from: base_commit.hash.clone(),
+        to: head_commit.hash.clone(),
+    };
+
+    let repo_report_dir = report_dir.join(&report_folder_name);
+    let diff_dir = repo_report_dir.join("diffs");
+    let _ = fs::create_dir_all(&diff_dir);
+
+    let mut diffs = Vec::new();
+    let mut retrieval_cache = ShowFileCache::new(SHOW_FILE_CACHE_CAPACITY);
+
+    match generate_diff_artifacts(repo_path, &diff_dir, timeout_secs, &pair) {
+        Ok(artifacts) => {
+            let patch_path = diff_dir.join(&artifacts.patch_filename);
+            let patch_bytes = fs::read(&patch_path).unwrap_or_default();
+
+            let (file_changes, element_summary, security_review) = if patch_bytes.len()
+                > MAX_PATCH_BYTES
+            {
+                errors.push(format!(
+                    "diff {} exceeds {} bytes; extraction skipped",
+                    pair.label, MAX_PATCH_BYTES
+                ));
+                (file_level_fallback(&artifacts.name_status), None, None)
+            } else {
+                let patch_text = String::from_utf8_lossy(&patch_bytes).to_string();
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    extract_from_patch(
+                        &patch_text,
+                        &artifacts.name_status,
+                        &base_commit.hash,
+                        &head_commit.hash,
+                        extraction,
+                    )
+                })) {
+                    Ok((mut file_changes, element_summary)) => {
+                        apply_git_show_diffonly_fallback(
+                            repo_path,
+                            timeout_secs,
+                            &base_commit.hash,
+                            &head_commit.hash,
+                            &mut file_changes,
+                            &mut retrieval_cache,
+                            &mut errors,
+                        );
+
+                        let security_review = if no_security_tags {
+                            None
+                        } else {
+                            match tag_file_changes(
+                                &mut file_changes,
+                                tag_definitions,
+                                include_test_security,
+                            ) {
+                                Ok(review) => Some(review),
+                                Err(err) => {
+                                    errors.push(format!(
+                                        "security tagging failed: {}",
+                                        err
+                                    ));
+                                    None
+                                }
+                            }
+                        };
+                        (file_changes, element_summary, security_review)
+                    }
+                    Err(_) => {
+                        errors.push(format!(
+                            "element extraction panicked for {}; falling back to file-level report",
+                            pair.label
+                        ));
+                        (file_level_fallback(&artifacts.name_status), None, None)
+                    }
+                }
+            };
+
+            diffs.push(DiffResult {
+                label: pair.label,
+                from_commit: base_commit.clone(),
+                to_commit: head_commit.clone(),
+                files_changed: artifacts.files_changed,
+                insertions: artifacts.insertions,
+                deletions: artifacts.deletions,
+                file_changes,
+                element_summary,
+                security_review,
+                patch_filename: format!("diffs/{}", artifacts.patch_filename),
+                changes_filename: format!("diffs/{}", artifacts.changes_filename),
+                summary_json_filename: None,
+                summary_txt_filename: None,
+                summary_md_filename: None,
+                snippets_dir: None,
+            });
+        }
+        Err(err) => errors.push(err.to_string()),
+    }
+
+    let status = if base_commit.hash == head_commit.hash {
+        RepoStatus::UpToDate
+    } else {
+        RepoStatus::Updated
+    };
+
+    RepoResult {
+        repo_path: repo_path.to_path_buf(),
+        repo_name,
+        report_folder_name,
+        branch: format!("{}..{}", base_ref, head_ref),
+        status,
+        pre_pull: Some(base_commit),
+        post_pull: Some(head_commit),
+        diffs,
+        pull_log: String::new(),
+        errors,
+        timestamp: Utc::now(),
+    }
+}
+
 pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult {
     let repo_name = repo_path
         .file_name()

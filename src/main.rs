@@ -9,11 +9,11 @@ use rayon::prelude::*;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use diffcatcher::cli::Cli;
+use diffcatcher::cli::{Cli, SummaryFormat};
 use diffcatcher::error::{PatrolError, Result};
 use diffcatcher::extraction::ExtractionOptions;
 use diffcatcher::git::commands::run_git_expect_stdout;
-use diffcatcher::processor::{ProcessorConfig, process_repository};
+use diffcatcher::processor::{ProcessorConfig, process_repository, process_diff_refs};
 use diffcatcher::report::writer::{prepare_report_dir, write_repo_report, write_top_level_reports};
 use diffcatcher::scanner::{ScanOptions, discover_repositories};
 use diffcatcher::security::{load_tag_definitions, overview::build_global_security_overview};
@@ -38,13 +38,20 @@ fn run() -> Result<i32> {
     cli.validate().map_err(PatrolError::InvalidArgument)?;
     ensure_git_available()?;
 
-    if !cli.root_dir.exists() {
-        return Err(PatrolError::MissingRoot(cli.root_dir.clone()));
+    let root_dir = cli.root_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+    if !root_dir.exists() {
+        return Err(PatrolError::MissingRoot(root_dir.clone()));
     }
 
     let report_dir = prepare_report_dir(cli.output.as_deref(), cli.overwrite)?;
     let tag_definitions = load_tag_definitions(cli.security_tags_file.as_deref())?;
 
+    // Branch-diff mode: diff two refs in a single repo.
+    if let Some((base, head)) = cli.parsed_diff_refs() {
+        return run_diff_mode(&cli, &root_dir, &report_dir, &tag_definitions, base, head);
+    }
+
+    // Standard scan mode.
     let scan_options = ScanOptions {
         nested: cli.nested,
         follow_symlinks: cli.follow_symlinks,
@@ -52,7 +59,7 @@ fn run() -> Result<i32> {
         include_bare: cli.include_bare,
     };
 
-    let mut repos = discover_repositories(&cli.root_dir, &scan_options)?;
+    let mut repos = discover_repositories(&root_dir, &scan_options)?;
     repos.sort();
 
     if cli.verbose && !cli.quiet {
@@ -76,7 +83,7 @@ fn run() -> Result<i32> {
     };
 
     let processor_cfg = ProcessorConfig {
-        root_dir: cli.root_dir.clone(),
+        root_dir: root_dir.clone(),
         report_dir: report_dir.clone(),
         timeout_secs: cli.timeout,
         pull_mode: cli.effective_pull_mode(),
@@ -90,7 +97,7 @@ fn run() -> Result<i32> {
         no_security_tags: cli.no_security_tags,
         include_detached: cli.include_detached,
         include_test_security: cli.include_test_security,
-        tag_definitions,
+        tag_definitions: tag_definitions.clone(),
         verbose: cli.verbose,
     };
 
@@ -121,7 +128,7 @@ fn run() -> Result<i32> {
         write_repo_report(&report_dir, repo, &cli.summary_formats)
     })?;
 
-    let summary = GlobalSummary::from_results(cli.root_dir.clone(), report_dir.clone(), &results);
+    let summary = GlobalSummary::from_results(root_dir.clone(), report_dir.clone(), &results);
     let security_overview = if cli.no_security_tags {
         None
     } else {
@@ -129,6 +136,7 @@ fn run() -> Result<i32> {
     };
 
     write_top_level_reports(&report_dir, &summary, security_overview.as_ref())?;
+    write_sarif_if_requested(&cli, &report_dir, &results, &tag_definitions)?;
     persist_incremental_state(&report_dir, &results)?;
 
     if cli.json_stdout {
@@ -144,6 +152,84 @@ fn run() -> Result<i32> {
     }
 
     Ok(exit_code_for_results(&results))
+}
+
+fn run_diff_mode(
+    cli: &Cli,
+    repo_path: &Path,
+    report_dir: &Path,
+    tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
+    base: &str,
+    head: &str,
+) -> Result<i32> {
+    let extraction = ExtractionOptions {
+        no_summary_extraction: cli.no_summary_extraction,
+        no_snippets: cli.no_snippets,
+        snippet_context: cli.snippet_context,
+        max_snippet_lines: cli.max_snippet_lines,
+        max_elements: cli.max_elements,
+    };
+
+    let mut result = process_diff_refs(
+        repo_path,
+        report_dir,
+        base,
+        head,
+        cli.timeout,
+        &extraction,
+        cli.no_security_tags,
+        cli.include_test_security,
+        tag_definitions,
+        cli.verbose,
+    );
+
+    write_repo_report(report_dir, &mut result, &cli.summary_formats)?;
+
+    let results = vec![result];
+    let summary = GlobalSummary::from_results(
+        repo_path.to_path_buf(),
+        report_dir.to_path_buf(),
+        &results,
+    );
+    let security_overview = if cli.no_security_tags {
+        None
+    } else {
+        Some(build_global_security_overview(&results))
+    };
+
+    write_top_level_reports(report_dir, &summary, security_overview.as_ref())?;
+    write_sarif_if_requested(cli, report_dir, &results, tag_definitions)?;
+
+    if cli.json_stdout {
+        println!("{}", serde_json::to_string_pretty(&summary)?);
+    } else if !cli.quiet {
+        let sec_count = summary.total_security_tagged_elements;
+        println!(
+            "DiffCatcher diff complete: {}..{}, {} security-tagged elements. Report: {}",
+            base,
+            head,
+            sec_count,
+            report_dir.display(),
+        );
+    }
+
+    Ok(exit_code_for_results(&results))
+}
+
+fn write_sarif_if_requested(
+    cli: &Cli,
+    report_dir: &Path,
+    results: &[RepoResult],
+    tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
+) -> Result<()> {
+    if !cli.summary_formats.contains(&SummaryFormat::Sarif) {
+        return Ok(());
+    }
+
+    let sarif = diffcatcher::report::sarif::build_sarif_from_results(results, tag_definitions);
+    let content = serde_json::to_string_pretty(&sarif)?;
+    fs::write(report_dir.join("results.sarif"), content)?;
+    Ok(())
 }
 
 fn init_tracing() {

@@ -24,6 +24,7 @@ pub enum SummaryFormat {
     Json,
     Txt,
     Md,
+    Sarif,
 }
 
 #[derive(Debug, Parser)]
@@ -33,8 +34,18 @@ pub enum SummaryFormat {
     about = "Scan git repositories and produce security-focused diff reports"
 )]
 pub struct Cli {
-    #[arg(value_name = "ROOT_DIR", help = "Directory to scan recursively")]
-    pub root_dir: PathBuf,
+    #[arg(
+        value_name = "ROOT_DIR",
+        help = "Directory to scan recursively (not required with --diff)"
+    )]
+    pub root_dir: Option<PathBuf>,
+
+    #[arg(
+        long = "diff",
+        value_name = "BASE..HEAD",
+        help = "Diff two refs in a single repo (e.g. main..feature, abc123..def456). Use ROOT_DIR as the repo path."
+    )]
+    pub diff_refs: Option<String>,
 
     #[arg(
         short = 'o',
@@ -246,6 +257,19 @@ pub struct Cli {
 
 impl Cli {
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(ref diff_refs) = self.diff_refs {
+            if self.root_dir.is_none() {
+                return Err("--diff requires ROOT_DIR as the repo path".to_string());
+            }
+            if !diff_refs.contains("..") {
+                return Err("--diff value must be in BASE..HEAD format (e.g. main..feature)".to_string());
+            }
+            if self.pull || self.force_pull {
+                return Err("--diff cannot be used with --pull or --force-pull".to_string());
+            }
+        } else if self.root_dir.is_none() {
+            return Err("ROOT_DIR is required (or use --diff)".to_string());
+        }
         if self.history_depth == 0 {
             return Err("--history-depth must be >= 1".to_string());
         }
@@ -262,6 +286,17 @@ impl Cli {
             return Err("--parallel must be >= 1".to_string());
         }
         Ok(())
+    }
+
+    pub fn parsed_diff_refs(&self) -> Option<(&str, &str)> {
+        self.diff_refs.as_deref().and_then(|s| {
+            let parts: Vec<&str> = s.splitn(2, "..").collect();
+            if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
+                Some((parts[0], parts[1]))
+            } else {
+                None
+            }
+        })
     }
 
     pub fn effective_pull_mode(&self) -> bool {

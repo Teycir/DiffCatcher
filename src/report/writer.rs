@@ -204,6 +204,9 @@ fn write_diff_summaries(
                 let file = format!("{}.md", base_name);
                 fs::write(diffs_dir.join(&file), markdown::render_diff_summary(diff))?;
             }
+            SummaryFormat::Sarif => {
+                // SARIF is written at the top level, not per-diff.
+            }
         }
     }
 

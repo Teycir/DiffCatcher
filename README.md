@@ -14,7 +14,8 @@ A Rust CLI tool that recursively discovers Git repositories, captures state chan
 - **Element Extraction**: Parse diffs to identify functions, structs, classes, imports, and more across 10+ languages
 - **Code Snippets**: Extract full before/after code with boundary detection and context windows
 - **Security Tagging**: 18 built-in security patterns (crypto, auth, secrets, SQL injection, XSS, etc.)
-- **Multi-Format Reports**: JSON, Markdown, and text outputs with cross-repo security overview
+- **Multi-Format Reports**: JSON, Markdown, text, and **SARIF** outputs with cross-repo security overview
+- **Branch-Diff Mode**: Diff any two refs (branches, tags, commits) in a single repo — ideal for PR reviews
 - **Performance**: Parallel processing with progress bars, LRU caching, and incremental mode
 
 ## 📋 Table of Contents
@@ -26,6 +27,8 @@ A Rust CLI tool that recursively discovers Git repositories, captures state chan
   - [Pull Modes](#pull-modes)
   - [Extraction Options](#extraction-options)
   - [Security Tagging](#security-tagging)
+  - [Branch-Diff Mode (PR Review)](#branch-diff-mode-pr-review)
+  - [SARIF Output](#sarif-output)
   - [Advanced Features](#advanced-features)
 - [Report Structure](#report-structure)
 - [Configuration](#configuration)
@@ -58,6 +61,12 @@ diffcatcher ~/projects
 
 # Pull updates and generate security report
 diffcatcher ~/projects --pull -o ./report
+
+# Diff two branches in a single repo (PR review mode)
+diffcatcher ./my-repo --diff main..feature/auth -o ./pr-report
+
+# Generate SARIF output for GitHub Code Scanning
+diffcatcher ~/projects --summary-format sarif,json -o ./report
 
 # Dry run to see what would be scanned
 diffcatcher ~/projects --dry-run
@@ -132,6 +141,33 @@ diffcatcher ~/projects --include-test-security
 diffcatcher ~/projects --security-tags-file ./custom-patterns.json
 ```
 
+### Branch-Diff Mode (PR Review)
+
+```bash
+# Diff two branches in a single repo
+diffcatcher ./my-repo --diff main..feature/auth
+
+# Diff specific commits
+diffcatcher ./my-repo --diff abc123..def456
+
+# Diff with SARIF output for CI integration
+diffcatcher ./my-repo --diff origin/main..HEAD --summary-format sarif -o ./pr-report
+```
+
+The `--diff BASE..HEAD` flag skips repository discovery and fetch/pull — it directly diffs two refs (branches, tags, or commit SHAs) and runs the full extraction + security tagging pipeline on the result.
+
+### SARIF Output
+
+```bash
+# Generate SARIF alongside other formats
+diffcatcher ~/projects --summary-format sarif,json,md
+
+# SARIF-only for CI/CD upload
+diffcatcher ~/projects --summary-format sarif -o ./report
+```
+
+When `sarif` is included in `--summary-format`, a `results.sarif` file is written to the report root. This file follows the [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) standard and integrates with GitHub Code Scanning, VS Code SARIF Viewer, Azure DevOps, and other SARIF-compatible tools.
+
 ### Advanced Features
 
 ```bash
@@ -157,6 +193,7 @@ diffcatcher ~/projects --verbose
 <report_dir>/
 ├── summary.json                    # Global summary
 ├── summary.md                      # Markdown summary
+├── results.sarif                   # SARIF 2.1.0 output (when --summary-format sarif)
 ├── security_overview.json          # Cross-repo security aggregation
 ├── security_overview.md
 ├── <repo-name>/
@@ -188,6 +225,8 @@ diffcatcher ~/projects --verbose
 | `--snippet-context` | `5` | Context lines around changes |
 | `--max-snippet-lines` | `200` | Max lines per snippet |
 | `--max-elements` | `500` | Max elements per diff |
+| `--diff` | — | Diff two refs in a single repo (`BASE..HEAD`) |
+| `--summary-format` | `json,md` | Output formats: `json`, `md`, `txt`, `sarif` |
 
 See `diffcatcher --help` for all options.
 
@@ -236,6 +275,7 @@ src/
 └── report/             # Report generation
     ├── writer.rs       # Directory structure
     ├── json.rs         # JSON serialization
+    ├── sarif.rs        # SARIF 2.1.0 output
     ├── markdown.rs     # Markdown formatting
     └── snippet_writer.rs
 ```
