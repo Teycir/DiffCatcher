@@ -1,4 +1,5 @@
 use std::fs;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 
 use chrono::Utc;
@@ -7,11 +8,18 @@ use glob::Pattern;
 use crate::cli::PullStrategy;
 use crate::extraction::{ExtractionOptions, extract_from_patch};
 use crate::git::commands::run_git;
-use crate::git::diff::{DiffPair, build_history_pairs, generate_diff_artifacts, safe_diff_pair};
+use crate::git::diff::{
+    DiffPair, NameStatusEntry, build_history_pairs, generate_diff_artifacts, safe_diff_pair,
+};
 use crate::git::state::{capture_commit, capture_repo_state};
 use crate::report::writer::repo_folder_name;
 use crate::security::tagger::tag_file_changes;
-use crate::types::{CommitInfo, DiffResult, RepoResult, RepoStatus, SecurityTagDefinition};
+use crate::types::{
+    CommitInfo, DiffResult, FileChangeDetail, Language, RepoResult, RepoStatus,
+    SecurityTagDefinition,
+};
+
+const MAX_PATCH_BYTES: usize = 50 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct ProcessorConfig {
@@ -259,25 +267,56 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                         .unwrap_or_else(|_| fallback_commit(&pair.to));
 
                     let patch_path = diff_dir.join(&artifacts.patch_filename);
-                    let patch_text = fs::read_to_string(&patch_path).unwrap_or_default();
+                    let patch_bytes = fs::read(&patch_path).unwrap_or_default();
 
-                    let (mut file_changes, element_summary) = extract_from_patch(
-                        &patch_text,
-                        &artifacts.name_status,
-                        &from_commit.hash,
-                        &to_commit.hash,
-                        &cfg.extraction,
-                    );
-
-                    let security_review = if cfg.no_security_tags {
-                        None
+                    let (file_changes, element_summary, security_review) = if patch_bytes.len()
+                        > MAX_PATCH_BYTES
+                    {
+                        errors.push(format!(
+                            "diff {} exceeds {} bytes; extraction skipped",
+                            pair.label, MAX_PATCH_BYTES
+                        ));
+                        (file_level_fallback(&artifacts.name_status), None, None)
                     } else {
-                        tag_file_changes(
-                            &mut file_changes,
-                            &cfg.tag_definitions,
-                            cfg.include_test_security,
-                        )
-                        .ok()
+                        let patch_text = String::from_utf8_lossy(&patch_bytes).to_string();
+                        match catch_unwind(AssertUnwindSafe(|| {
+                            extract_from_patch(
+                                &patch_text,
+                                &artifacts.name_status,
+                                &from_commit.hash,
+                                &to_commit.hash,
+                                &cfg.extraction,
+                            )
+                        })) {
+                            Ok((mut file_changes, element_summary)) => {
+                                let security_review = if cfg.no_security_tags {
+                                    None
+                                } else {
+                                    match tag_file_changes(
+                                        &mut file_changes,
+                                        &cfg.tag_definitions,
+                                        cfg.include_test_security,
+                                    ) {
+                                        Ok(review) => Some(review),
+                                        Err(err) => {
+                                            errors.push(format!(
+                                                "security tagging failed for {}: {}",
+                                                pair.label, err
+                                            ));
+                                            None
+                                        }
+                                    }
+                                };
+                                (file_changes, element_summary, security_review)
+                            }
+                            Err(_) => {
+                                errors.push(format!(
+                                        "element extraction panicked for {}; falling back to file-level report",
+                                        pair.label
+                                    ));
+                                (file_level_fallback(&artifacts.name_status), None, None)
+                            }
+                        }
                     };
 
                     diffs.push(DiffResult {
@@ -371,4 +410,25 @@ fn fallback_commit(spec: &str) -> CommitInfo {
         author: "unknown".to_string(),
         timestamp: Utc::now().to_rfc3339(),
     }
+}
+
+fn file_level_fallback(
+    name_status: &std::collections::BTreeMap<String, NameStatusEntry>,
+) -> Vec<FileChangeDetail> {
+    let mut files = name_status
+        .iter()
+        .map(|(path, status)| FileChangeDetail {
+            path: path.clone(),
+            old_path: status.old_path.clone(),
+            status: status.status,
+            language: Language::Unknown("fallback".to_string()),
+            insertions: 0,
+            deletions: 0,
+            elements: Vec::new(),
+            raw_hunks: Vec::new(),
+            is_binary: false,
+        })
+        .collect::<Vec<_>>();
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    files
 }
