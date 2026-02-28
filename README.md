@@ -301,9 +301,23 @@ Test coverage includes:
 
 ## 📚 Documentation
 
+### Project Documentation
 - [Plan.md](Plan.md) - Full specification (v1.2)
 - [Roadmap.md](Roadmap.md) - Implementation roadmap and progress
 - Security patterns reference (see `src/security/patterns.rs`)
+
+### Code Documentation
+All modules include comprehensive inline documentation. Key modules:
+- `src/extraction/parser.rs` - Unified diff parser with hunk extraction
+- `src/extraction/elements.rs` - Language-aware code element detection
+- `src/extraction/snippets.rs` - Full code snippet extraction with boundary detection
+- `src/security/tagger.rs` - Security pattern matching engine
+- `src/git/commands.rs` - Git operation wrappers
+
+Generate full API docs:
+```bash
+cargo doc --open
+```
 
 ## 🏷️ Tags
 

@@ -1,27 +1,66 @@
+//! Unified diff parser for extracting file changes and hunks.
+//!
+//! This module parses Git unified diff output (from `git diff`) into structured
+//! data for element extraction and analysis. It handles:
+//! - File headers (diff --git, +++, ---)
+//! - Hunk headers (@@ -old_start,old_count +new_start,new_count @@)
+//! - Binary file detection
+//! - Rename operations
+//! - Insertion/deletion counting
+
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::types::RawHunk;
 
+/// Represents a single file's changes within a diff.
+///
+/// Contains all hunks for the file, along with metadata like paths,
+/// insertion/deletion counts, and binary file status.
 #[derive(Debug, Clone)]
 pub struct ParsedFileDiff {
+    /// Original file path (None for new files)
     pub old_path: Option<String>,
+    /// New file path
     pub new_path: String,
+    /// All hunks (change blocks) in this file
     pub hunks: Vec<RawHunk>,
+    /// Total number of inserted lines
     pub insertions: u32,
+    /// Total number of deleted lines
     pub deletions: u32,
+    /// Whether this is a binary file (no text diff available)
     pub is_binary: bool,
 }
 
+/// Complete parsed diff containing all file changes.
 #[derive(Debug, Clone, Default)]
 pub struct ParsedDiff {
+    /// All files modified in this diff
     pub files: Vec<ParsedFileDiff>,
 }
 
+/// Regex for parsing hunk headers: @@ -old_start,old_count +new_start,new_count @@ context
 static HUNK_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@\s*(.*)$").expect("valid regex")
 });
 
+/// Parses a unified diff string into structured data.
+///
+/// # Arguments
+/// * `input` - Raw unified diff output from `git diff`
+///
+/// # Returns
+/// A `ParsedDiff` containing all file changes with hunks, line counts, and metadata.
+///
+/// # Example
+/// ```ignore
+/// let diff_output = "diff --git a/file.rs b/file.rs\n...";
+/// let parsed = parse_unified_diff(diff_output);
+/// for file in parsed.files {
+///     println!("File: {} (+{} -{})" file.new_path, file.insertions, file.deletions);
+/// }
+/// ```
 pub fn parse_unified_diff(input: &str) -> ParsedDiff {
     let hunk_re = &*HUNK_RE;
 
