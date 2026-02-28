@@ -16,7 +16,12 @@ index 123..456 100644
  }
 "#;
 
-    let (files, summary) = extract(patch, "src/lib.rs", FileStatus::Modified, Some("src/lib.rs"));
+    let (files, summary) = extract(
+        patch,
+        "src/lib.rs",
+        FileStatus::Modified,
+        Some("src/lib.rs"),
+    );
     assert_eq!(files[0].language, Language::Rust);
     let summary = summary.expect("summary");
     let element = summary
@@ -111,10 +116,12 @@ index 5555555..6666666 100644
     );
     assert_eq!(files[0].language, Language::Go);
     let summary = summary.expect("summary");
-    assert!(summary
-        .elements
-        .iter()
-        .any(|e| e.kind == ElementKind::Function && e.name == "ValidateToken"));
+    assert!(
+        summary
+            .elements
+            .iter()
+            .any(|e| e.kind == ElementKind::Function && e.name == "ValidateToken")
+    );
 }
 
 fn extract(

@@ -198,9 +198,11 @@ fn non_utf8_file_changes_are_processed_without_panicking() {
 
     assert!(matches!(result.status, RepoStatus::UpToDate));
     assert!(!result.diffs.is_empty());
-    assert!(result.diffs.iter().any(|diff| diff.file_changes.iter().any(|f| {
-        f.path.ends_with("blob.bin") && (f.is_binary || f.elements.is_empty())
-    })));
+    assert!(result.diffs.iter().any(|diff| {
+        diff.file_changes
+            .iter()
+            .any(|f| f.path.ends_with("blob.bin") && (f.is_binary || f.elements.is_empty()))
+    }));
 }
 
 #[test]

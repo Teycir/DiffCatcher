@@ -26,12 +26,7 @@ fn fetch_mode_transitions_from_up_to_date_to_updated() {
     git(&seed, &["commit", "-m", "v1"]);
     git(
         &seed,
-        &[
-            "remote",
-            "add",
-            "origin",
-            remote.to_string_lossy().as_ref(),
-        ],
+        &["remote", "add", "origin", remote.to_string_lossy().as_ref()],
     );
     git(&seed, &["push", "-u", "origin", "HEAD"]);
 
@@ -47,7 +42,12 @@ fn fetch_mode_transitions_from_up_to_date_to_updated() {
     let first = process_repository(&local, &cfg);
     assert!(matches!(first.status, RepoStatus::UpToDate));
     let first_pre = first.pre_pull.as_ref().expect("pre pull hash").hash.clone();
-    let first_post = first.post_pull.as_ref().expect("post pull hash").hash.clone();
+    let first_post = first
+        .post_pull
+        .as_ref()
+        .expect("post pull hash")
+        .hash
+        .clone();
     assert_eq!(first_pre, first_post);
 
     std::fs::write(seed.join("lib.rs"), "pub fn v() -> i32 { 2 }\n").expect("write v2");
@@ -57,8 +57,18 @@ fn fetch_mode_transitions_from_up_to_date_to_updated() {
 
     let second = process_repository(&local, &cfg);
     assert!(matches!(second.status, RepoStatus::Updated));
-    let second_pre = second.pre_pull.as_ref().expect("pre pull hash").hash.clone();
-    let second_post = second.post_pull.as_ref().expect("post pull hash").hash.clone();
+    let second_pre = second
+        .pre_pull
+        .as_ref()
+        .expect("pre pull hash")
+        .hash
+        .clone();
+    let second_post = second
+        .post_pull
+        .as_ref()
+        .expect("post pull hash")
+        .hash
+        .clone();
     assert_ne!(second_pre, second_post);
 }
 
@@ -100,6 +110,9 @@ fn git(repo: &Path, args: &[&str]) {
 }
 
 fn git_raw(args: &[&str]) {
-    let status = Command::new("git").args(args).status().expect("run git command");
+    let status = Command::new("git")
+        .args(args)
+        .status()
+        .expect("run git command");
     assert!(status.success(), "git command failed: {:?}", args);
 }

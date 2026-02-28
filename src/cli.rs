@@ -33,94 +33,214 @@ pub enum SummaryFormat {
     about = "Scan git repositories and produce security-focused diff reports"
 )]
 pub struct Cli {
-    #[arg(value_name = "ROOT_DIR")]
+    #[arg(value_name = "ROOT_DIR", help = "Directory to scan recursively")]
     pub root_dir: PathBuf,
 
-    #[arg(short = 'o', long = "output", value_name = "DIR")]
+    #[arg(
+        short = 'o',
+        long = "output",
+        value_name = "DIR",
+        help = "Report output directory"
+    )]
     pub output: Option<PathBuf>,
 
-    #[arg(short = 's', long = "pull-strategy", value_enum, default_value_t = PullStrategy::FfOnly)]
+    #[arg(
+        short = 's',
+        long = "pull-strategy",
+        value_enum,
+        default_value_t = PullStrategy::FfOnly,
+        help = "Pull strategy: ff-only, rebase, merge"
+    )]
     pub pull_strategy: PullStrategy,
 
-    #[arg(short = 't', long = "timeout", default_value_t = 120)]
+    #[arg(
+        short = 't',
+        long = "timeout",
+        default_value_t = 120,
+        help = "Timeout per repo for git operations (seconds)"
+    )]
     pub timeout: u64,
 
-    #[arg(long, action = ArgAction::SetTrue)]
+    #[arg(long, action = ArgAction::SetTrue, help = "Recurse into repos to find nested repos")]
     pub nested: bool,
 
-    #[arg(long = "follow-symlinks", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "follow-symlinks",
+        action = ArgAction::SetTrue,
+        help = "Follow symbolic links during scan"
+    )]
     pub follow_symlinks: bool,
 
-    #[arg(long = "skip-hidden", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "skip-hidden",
+        action = ArgAction::SetTrue,
+        help = "Skip hidden directories (dot-prefixed) except .git"
+    )]
     pub skip_hidden: bool,
 
-    #[arg(long = "pull", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "pull",
+        action = ArgAction::SetTrue,
+        help = "Actually pull (modify working tree) instead of fetch-only"
+    )]
     pub pull: bool,
 
-    #[arg(long = "force-pull", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "force-pull",
+        action = ArgAction::SetTrue,
+        help = "Stash dirty repos before pull, pop after (requires --pull)"
+    )]
     pub force_pull: bool,
 
-    #[arg(long = "no-pull", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "no-pull",
+        action = ArgAction::SetTrue,
+        help = "Skip fetching/pulling; only capture state and generate historical diffs"
+    )]
     pub no_pull: bool,
 
-    #[arg(short = 'd', long = "history-depth", default_value_t = 2)]
+    #[arg(
+        short = 'd',
+        long = "history-depth",
+        default_value_t = 2,
+        help = "Number of historical commits to diff (min 1, max 10)"
+    )]
     pub history_depth: u32,
 
-    #[arg(short = 'j', long = "parallel", default_value_t = 4)]
+    #[arg(
+        short = 'j',
+        long = "parallel",
+        default_value_t = 4,
+        help = "Number of repos to process concurrently"
+    )]
     pub parallel: usize,
 
-    #[arg(short = 'q', long = "quiet", action = ArgAction::SetTrue)]
+    #[arg(
+        short = 'q',
+        long = "quiet",
+        action = ArgAction::SetTrue,
+        help = "Suppress stdout progress; only write report files"
+    )]
     pub quiet: bool,
 
-    #[arg(short = 'v', long = "verbose", action = ArgAction::SetTrue)]
+    #[arg(
+        short = 'v',
+        long = "verbose",
+        action = ArgAction::SetTrue,
+        help = "Print detailed processing output to terminal"
+    )]
     pub verbose: bool,
 
-    #[arg(long = "dry-run", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "dry-run",
+        action = ArgAction::SetTrue,
+        help = "Discover repos and report state; do not pull or modify anything"
+    )]
     pub dry_run: bool,
 
-    #[arg(long = "json", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "json",
+        action = ArgAction::SetTrue,
+        help = "Print final summary to stdout as JSON (for piping)"
+    )]
     pub json_stdout: bool,
 
-    #[arg(long = "branch-filter", default_value = "*")]
+    #[arg(
+        long = "branch-filter",
+        default_value = "*",
+        help = "Only process repos on branches matching glob pattern"
+    )]
     pub branch_filter: String,
 
-    #[arg(long = "no-summary-extraction", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "no-summary-extraction",
+        action = ArgAction::SetTrue,
+        help = "Skip element extraction; only produce raw diffs and file lists"
+    )]
     pub no_summary_extraction: bool,
 
-    #[arg(long = "no-snippets", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "no-snippets",
+        action = ArgAction::SetTrue,
+        help = "Extract elements but do not capture code snippets"
+    )]
     pub no_snippets: bool,
 
-    #[arg(long = "no-security-tags", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "no-security-tags",
+        action = ArgAction::SetTrue,
+        help = "Skip security pattern tagging"
+    )]
     pub no_security_tags: bool,
 
-    #[arg(long = "snippet-context", default_value_t = 5)]
+    #[arg(
+        long = "snippet-context",
+        default_value_t = 5,
+        help = "Lines of context above/below changed lines in snippets"
+    )]
     pub snippet_context: u32,
 
-    #[arg(long = "max-snippet-lines", default_value_t = 200)]
+    #[arg(
+        long = "max-snippet-lines",
+        default_value_t = 200,
+        help = "Max lines per individual snippet"
+    )]
     pub max_snippet_lines: u32,
 
-    #[arg(long = "max-elements", default_value_t = 500)]
+    #[arg(
+        long = "max-elements",
+        default_value_t = 500,
+        help = "Max elements to extract per diff (safety cap)"
+    )]
     pub max_elements: usize,
 
-    #[arg(long = "summary-format", value_delimiter = ',', default_values = ["json", "md"])]
+    #[arg(
+        long = "summary-format",
+        value_delimiter = ',',
+        default_values = ["json", "md"],
+        help = "Comma-separated list of summary formats to generate"
+    )]
     pub summary_formats: Vec<SummaryFormat>,
 
-    #[arg(long = "incremental", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "incremental",
+        action = ArgAction::SetTrue,
+        help = "Skip repos unchanged since the last run"
+    )]
     pub incremental: bool,
 
-    #[arg(long = "security-tags-file")]
+    #[arg(
+        long = "security-tags-file",
+        help = "Custom JSON file defining security tag patterns"
+    )]
     pub security_tags_file: Option<PathBuf>,
 
-    #[arg(long = "overwrite", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "overwrite",
+        action = ArgAction::SetTrue,
+        help = "Overwrite an existing output directory"
+    )]
     pub overwrite: bool,
 
-    #[arg(long = "include-detached", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "include-detached",
+        action = ArgAction::SetTrue,
+        help = "Process repositories in detached HEAD state"
+    )]
     pub include_detached: bool,
 
-    #[arg(long = "include-bare", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "include-bare",
+        action = ArgAction::SetTrue,
+        help = "Include bare repositories during discovery"
+    )]
     pub include_bare: bool,
 
-    #[arg(long = "include-test-security", action = ArgAction::SetTrue)]
+    #[arg(
+        long = "include-test-security",
+        action = ArgAction::SetTrue,
+        help = "Include test-path elements when computing security tags"
+    )]
     pub include_test_security: bool,
 }
 

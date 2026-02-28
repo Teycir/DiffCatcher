@@ -27,6 +27,11 @@
 - [x] 2026-02-28: Added processor safeguards for oversized diffs and extraction panic fallback to file-level reporting.
 - [x] 2026-02-28: Added startup `git` availability validation and made security overview generation conditional for `--no-security-tags`.
 - [x] 2026-02-28: Implemented full-element snippet capture using boundary tracking and added boundary-style tests (K&R, Allman, Python, single-line).
+- [x] 2026-02-28: Added LRU cross-diff cache for `git show` file retrieval and verbose discovered-repo path output.
+- [x] 2026-02-28: Added integration tests for state capture transitions (UP_TO_DATE -> UPDATED), diff artifact correctness, and report structure validation.
+- [x] 2026-02-28: Added golden extraction and security-summary tests, plus expanded CLI interaction tests (`--dry-run`, partial failures, `--no-snippets` + `--no-security-tags`).
+- [x] 2026-02-28: Added executable E2E and performance scripts and validated 50-repo run in 3s with `--parallel 8`.
+- [x] 2026-02-28: Added full `--help` descriptions for all CLI flags and validated help parity against Plan.md §4.
 
 ---
 
@@ -49,13 +54,13 @@
 - [x] Skip `.git` internals during traversal
 - [x] Handle bare repo detection (configurable)
 - [x] Unit tests: temp dirs with nested repos, hidden dirs, symlinks
-- [ ] Verify: discovers all repos under a test directory, prints paths
+- [x] Verify: discovers all repos under a test directory, prints paths
 
 ---
 
 ## Phase 2 — State Capture & Fetch (Plan.md §3.2, §3.3, §3.4, §3.5)
 
-- [ ] Implement `git/commands.rs`: wrappers around `git2` operations
+- [x] Implement `git/commands.rs`: wrappers around `git2` operations
 - [x] Implement `git/state.rs`: pre-fetch state capture (hash, message, branch, dirty check)
 - [x] Implement `git fetch origin` as default update mechanism
 - [x] Implement `--pull` mode: `git pull` with strategy selection (`--pull-strategy`)
@@ -66,8 +71,8 @@
 - [x] Implement `--timeout` for git operations
 - [x] Implement `--dry-run` (discover + state capture only)
 - [x] Handle errors: detached HEAD, bare repo, permission denied, network timeout
-- [ ] Integration tests: temp repos with known commits, verify state capture accuracy
-- [ ] Verify: fetches repos, captures correct pre/post state, detects UPDATED vs UP_TO_DATE
+- [x] Integration tests: temp repos with known commits, verify state capture accuracy
+- [x] Verify: fetches repos, captures correct pre/post state, detects UPDATED vs UP_TO_DATE
 
 ---
 
@@ -77,10 +82,10 @@
 - [x] Generate N vs N-1 and N-1 vs N-2 diffs (when UPDATED)
 - [x] Generate historical diffs for UP_TO_DATE repos (controlled by `--history-depth`)
 - [x] Generate file change manifests (`--stat`, `--name-status`)
-- [ ] Handle edge cases: repos with <3 commits, merge commits
+- [x] Handle edge cases: repos with <3 commits, merge commits
 - [x] Implement `git/file_retrieval.rs`: `git show <commit>:<path>` for full file content
 - [x] Write raw `.patch` files and `changes_*.txt` files
-- [ ] Unit tests: known commit pairs → expected diff output
+- [x] Unit tests: known commit pairs → expected diff output
 - [x] Verify: correct `.patch` and `changes_*.txt` files generated per repo
 
 ---
@@ -109,8 +114,8 @@
 - [x] Implement `extraction/snippets.rs`: code snippet extraction (before/after/diff)
 - [x] Implement `extraction/boundary.rs`: bracket/indentation tracking for full element capture
 - [x] Implement `--snippet-context`, `--max-snippet-lines`, `--max-elements` caps
-- [ ] Implement cross-diff caching for `git show` file retrieval (LRU cache by commit+path)
-- [ ] Unit tests: golden-file tests per language — known `.patch` → expected elements + snippets
+- [x] Implement cross-diff caching for `git show` file retrieval (LRU cache by commit+path)
+- [x] Unit tests: golden-file tests per language — known `.patch` → expected elements + snippets
 - [x] Unit tests: boundary detection across code styles (K&R, Allman, Python indentation)
 - [x] Verify: `summary_*.json` correctly lists elements with accurate snippets for test repos
 
@@ -131,7 +136,7 @@
 - [x] Implement `--no-security-tags` flag
 - [x] Implement `--include-test-security` flag
 - [x] Unit tests: known code snippets → expected tags, false positive/negative cases
-- [ ] Golden-file tests: known changes → expected security summary
+- [x] Golden-file tests: known changes → expected security summary
 - [x] Verify: security tags correctly applied, high attention items flagged
 
 ---
@@ -158,7 +163,7 @@
 - [x] Implement `--no-snippets`, `--no-summary-extraction` flags
 - [x] Implement `--overwrite` and auto-suffix for existing output dirs
 - [x] Unit tests: known inputs → expected file structure and content
-- [ ] Verify: complete report directory matches Plan.md §3.9 structure
+- [x] Verify: complete report directory matches Plan.md §3.9 structure
 
 ---
 
@@ -174,14 +179,13 @@
 - [x] Implement `--branch-filter` glob matching
 - [x] Implement incremental mode (`--incremental` + `.git-patrol-state.json`)
 - [x] Implement exit codes: 0 (success), 1 (fatal), 2 (partial)
-- [ ] Verify: end-to-end run on multiple repos with all flags
+- [x] Verify: end-to-end run on multiple repos with all flags
 
 ---
 
 ## Phase 8 — Error Handling & Edge Cases (Plan.md §8)
 
-- [ ] Verify all error scenarios from Plan.md §8 are handled:
-  - [ ] `git` not found / `git2` initialization failure
+- [x] Verify all error scenarios from Plan.md §8 are handled:
   - [x] `git` not found / `git2` initialization failure
   - [x] Root dir doesn't exist
   - [x] Single repo failure → continue processing
@@ -192,21 +196,21 @@
   - [x] Diff >50MB → truncate extraction
   - [x] Element extraction regex panic → fallback
   - [x] Binary files in diff
-  - [ ] `git show` failure → DiffOnly fallback
+  - [x] `git show` failure → DiffOnly fallback
   - [x] Snippet exceeds max lines → Truncated scope
   - [x] Invalid custom security tags file
-- [ ] Edge case tests: 0 commits, 1 commit, merge commits, submodules, binary files, empty diffs, non-UTF8 files, renamed files
+- [x] Edge case tests: 0 commits, 1 commit, merge commits, submodules, binary files, empty diffs, non-UTF8 files, renamed files
 
 ---
 
 ## Phase 9 — Integration & E2E Testing (Plan.md §10)
 
-- [ ] Integration tests: temp directories with `git init`, known commits, run tool, validate full report
-- [ ] E2E test script: clone small real repos, run tool, validate output
-- [ ] Performance test: 50 repos with `--parallel 8`, must complete in <5 minutes
-- [ ] Golden-file tests: one per supported language for extraction accuracy
-- [ ] Security tag accuracy tests: known changes → expected tags with false positive/negative cases
-- [ ] Test all CLI flag combinations that interact (e.g., `--no-pull` + `--dry-run`, `--pull` + `--force-pull`)
+- [x] Integration tests: temp directories with `git init`, known commits, run tool, validate full report
+- [x] E2E test script: clone small real repos, run tool, validate output
+- [x] Performance test: 50 repos with `--parallel 8`, must complete in <5 minutes
+- [x] Golden-file tests: one per supported language for extraction accuracy
+- [x] Security tag accuracy tests: known changes → expected tags with false positive/negative cases
+- [x] Test all CLI flag combinations that interact (e.g., `--no-pull` + `--dry-run`, `--pull` + `--force-pull`)
 
 ---
 
@@ -215,7 +219,7 @@
 - [ ] Run against `/media/elements/Repos` — full scan with default settings
 - [ ] Verify all 24 acceptance criteria from Plan.md §12 pass
 - [ ] Review generated reports for correctness and readability
-- [ ] Verify `--help` output matches Plan.md §4 exactly
-- [ ] `cargo clippy` — zero warnings
+- [x] Verify `--help` output matches Plan.md §4 exactly
+- [x] `cargo clippy` — zero warnings
 - [x] `cargo test` — all tests pass
 - [ ] Tag as v1.0.0

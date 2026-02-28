@@ -11,7 +11,10 @@ use tempfile::tempdir;
 fn build_history_pairs_produces_expected_labels() {
     let pairs = build_history_pairs("abc123", 4, true);
     let labels = pairs.iter().map(|p| p.label.as_str()).collect::<Vec<_>>();
-    assert_eq!(labels, vec!["N_vs_N-1", "N-1_vs_N-2", "N-2_vs_N-3", "N-3_vs_N-4"]);
+    assert_eq!(
+        labels,
+        vec!["N_vs_N-1", "N-1_vs_N-2", "N-2_vs_N-3", "N-3_vs_N-4"]
+    );
 }
 
 #[test]
@@ -71,11 +74,7 @@ fn generate_diff_artifacts_tracks_rename_status() {
     std::fs::create_dir_all(&repo).expect("create repo");
     init_repo(&repo);
 
-    std::fs::write(
-        repo.join("old.txt"),
-        "line1\nline2\nline3\nline4\nline5\n",
-    )
-    .expect("write old");
+    std::fs::write(repo.join("old.txt"), "line1\nline2\nline3\nline4\nline5\n").expect("write old");
     git(&repo, &["add", "."]);
     git(&repo, &["commit", "-m", "c1"]);
     let c1 = git_out(&repo, &["rev-parse", "HEAD"]);
