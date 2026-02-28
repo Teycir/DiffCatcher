@@ -25,13 +25,15 @@
 - [x] 2026-02-28: Implemented intra-repo parallelism for extraction/tagging and added CLI progress bar output.
 - [x] 2026-02-28: Added edge-case tests for detached HEAD, bare repos, single-commit history handling, and invalid custom security files.
 - [x] 2026-02-28: Added processor safeguards for oversized diffs and extraction panic fallback to file-level reporting.
+- [x] 2026-02-28: Added startup `git` availability validation and made security overview generation conditional for `--no-security-tags`.
+- [x] 2026-02-28: Implemented full-element snippet capture using boundary tracking and added boundary-style tests (K&R, Allman, Python, single-line).
 
 ---
 
 ## Phase 0 — Project Bootstrap
 
 - [x] Initialize Rust project: `cargo init --name git-patrol`
-- [ ] Set up `Cargo.toml` with dependencies: `git2`, `clap` (v4 derive), `walkdir`, `rayon`, `serde`, `serde_json`, `chrono`, `thiserror`, `indicatif`, `tracing`, `tracing-subscriber`, `regex`, `once_cell`, `glob`
+- [x] Set up `Cargo.toml` with dependencies: `git2`, `clap` (v4 derive), `walkdir`, `rayon`, `serde`, `serde_json`, `chrono`, `thiserror`, `indicatif`, `tracing`, `tracing-subscriber`, `regex`, `once_cell`, `glob`
 - [x] Create module structure per Plan.md §5.1
 - [x] Set up `error.rs` with `thiserror` error types (Plan.md §8)
 - [x] Set up `types.rs` with all data types from Plan.md §6
@@ -105,11 +107,11 @@
   - [x] `config.rs` (TOML, YAML, JSON)
   - [x] `fallback.rs`
 - [x] Implement `extraction/snippets.rs`: code snippet extraction (before/after/diff)
-- [ ] Implement `extraction/boundary.rs`: bracket/indentation tracking for full element capture
+- [x] Implement `extraction/boundary.rs`: bracket/indentation tracking for full element capture
 - [x] Implement `--snippet-context`, `--max-snippet-lines`, `--max-elements` caps
 - [ ] Implement cross-diff caching for `git show` file retrieval (LRU cache by commit+path)
 - [ ] Unit tests: golden-file tests per language — known `.patch` → expected elements + snippets
-- [ ] Unit tests: boundary detection across code styles (K&R, Allman, Python indentation)
+- [x] Unit tests: boundary detection across code styles (K&R, Allman, Python indentation)
 - [x] Verify: `summary_*.json` correctly lists elements with accurate snippets for test repos
 
 ---
@@ -180,6 +182,7 @@
 
 - [ ] Verify all error scenarios from Plan.md §8 are handled:
   - [ ] `git` not found / `git2` initialization failure
+  - [x] `git` not found / `git2` initialization failure
   - [x] Root dir doesn't exist
   - [x] Single repo failure → continue processing
   - [x] Permission denied on subdirectory
