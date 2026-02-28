@@ -1,2 +1,6 @@
 .qodo
 .history
+
+# Added by cargo
+
+/target
