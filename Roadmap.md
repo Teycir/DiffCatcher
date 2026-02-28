@@ -19,6 +19,10 @@
 - [x] 2026-02-28: Implemented runnable `git-patrol` CLI with discovery, fetch/pull, diff generation, extraction, tagging, and reporting.
 - [x] 2026-02-28: Added initial integration tests in `tests/basic.rs`.
 - [x] 2026-02-28: Validated execution on `/media/elements/Repos/apt0d/libnvidia-container` (sample validation run).
+- [x] 2026-02-28: Added scanner coverage for hidden directories and symlink traversal.
+- [x] 2026-02-28: Added security tagger unit tests for positive and false-positive scenarios.
+- [x] 2026-02-28: Added report writer integration test for expected output structure/content.
+- [x] 2026-02-28: Implemented intra-repo parallelism for extraction/tagging and added CLI progress bar output.
 
 ---
 
@@ -40,7 +44,7 @@
 - [x] Handle `--nested`, `--follow-symlinks`, `--skip-hidden` flags
 - [x] Skip `.git` internals during traversal
 - [x] Handle bare repo detection (configurable)
-- [ ] Unit tests: temp dirs with nested repos, hidden dirs, symlinks
+- [x] Unit tests: temp dirs with nested repos, hidden dirs, symlinks
 - [ ] Verify: discovers all repos under a test directory, prints paths
 
 ---
@@ -122,7 +126,7 @@
 - [x] Implement `high_attention_items` logic (Plan.md §3.8.3)
 - [x] Implement `--no-security-tags` flag
 - [x] Implement `--include-test-security` flag
-- [ ] Unit tests: known code snippets → expected tags, false positive/negative cases
+- [x] Unit tests: known code snippets → expected tags, false positive/negative cases
 - [ ] Golden-file tests: known changes → expected security summary
 - [x] Verify: security tags correctly applied, high attention items flagged
 
@@ -149,7 +153,7 @@
 - [x] Implement `--summary-format` flag (default: `json,md`)
 - [x] Implement `--no-snippets`, `--no-summary-extraction` flags
 - [x] Implement `--overwrite` and auto-suffix for existing output dirs
-- [ ] Unit tests: known inputs → expected file structure and content
+- [x] Unit tests: known inputs → expected file structure and content
 - [ ] Verify: complete report directory matches Plan.md §3.9 structure
 
 ---
@@ -159,8 +163,8 @@
 - [x] Implement `processor.rs`: per-repo pipeline orchestration (state → fetch → diff → extract → tag → report)
 - [x] Implement `main.rs`: top-level orchestration (discover → parallel process → aggregate → write global reports)
 - [x] Implement rayon-based parallel repo processing (`--parallel`)
-- [ ] Implement intra-repo parallelism for per-file extraction/tagging
-- [ ] Implement progress bars with `indicatif` (suppressed by `--quiet`)
+- [x] Implement intra-repo parallelism for per-file extraction/tagging
+- [x] Implement progress bars with `indicatif` (suppressed by `--quiet`)
 - [x] Implement `--verbose` logging with `tracing`
 - [x] Implement `--json` stdout output for CI/CD piping
 - [x] Implement `--branch-filter` glob matching
