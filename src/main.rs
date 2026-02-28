@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -90,10 +91,21 @@ fn run() -> Result<i32> {
         .build_global()
         .ok();
 
+    let progress = build_progress_bar(repos.len() as u64, cli.quiet);
+    let progress_for_workers = progress.clone();
     let mut results: Vec<RepoResult> = repos
         .par_iter()
-        .map(|repo_path| process_repository(repo_path, &processor_cfg))
+        .map(|repo_path| {
+            let result = process_repository(repo_path, &processor_cfg);
+            if let Some(pb) = &progress_for_workers {
+                pb.inc(1);
+            }
+            result
+        })
         .collect();
+    if let Some(pb) = &progress {
+        pb.finish_and_clear();
+    }
 
     results.sort_by(|a, b| a.report_folder_name.cmp(&b.report_folder_name));
 
@@ -184,4 +196,18 @@ fn filter_incremental_repos(
     }
 
     Ok(filtered)
+}
+
+fn build_progress_bar(total: u64, quiet: bool) -> Option<ProgressBar> {
+    if quiet {
+        return None;
+    }
+
+    let pb = ProgressBar::new(total);
+    let style = ProgressStyle::with_template(
+        "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} repos ({eta})",
+    )
+    .unwrap_or_else(|_| ProgressStyle::default_bar());
+    pb.set_style(style.progress_chars("##-"));
+    Some(pb)
 }
