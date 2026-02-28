@@ -43,9 +43,9 @@ OUTPUT: list of absolute paths to directories containing a `.git` folder
 - Follow symlinks: **no** by default, enabled with `--follow-symlinks`.
 - Respect `.gitignore` / hidden dirs: scan everything by default, `--skip-hidden` to ignore dot-prefixed directories (except `.git` detection itself).
 
-### 3.2 — Pre-Pull State Capture
+### 3.2 — Pre-Fetch State Capture
 
-For each discovered repo, **before** pulling, record:
+For each discovered repo, **before** fetching/pulling, record:
 
 | Field | Source |
 |-------|--------|
@@ -55,10 +55,24 @@ For each discovered repo, **before** pulling, record:
 | `pre_pull_dirty` | `git status --porcelain` (non-empty = dirty) |
 
 If the working tree is **dirty** (uncommitted changes):
-- Default: **skip** the pull for that repo, log a warning, still produce a report marking it `DIRTY_SKIPPED`.
-- With `--force-pull`: stash before pull, pop after (`git stash push -m "git-patrol auto-stash"` / `git stash pop`).
+- **Fetch-only mode (default)**: Dirty state is **recorded** but does **not** block the operation, since `git fetch` does not modify the working tree.
+- **With `--pull`**: Default behavior **skips** the pull for that repo, logs a warning, and marks it `DIRTY_SKIPPED`.
+- **With `--pull --force-pull`**: Stash before pull, pop after (`git stash push -m "git-patrol auto-stash"` / `git stash pop`). The `--force-pull` flag only applies when `--pull` is also set.
 
-### 3.3 — Update (git pull)
+### 3.3 — Update (git fetch / git pull)
+
+**Default: fetch-only**
+
+```
+git fetch origin
+```
+
+- By default, only remote-tracking refs are updated. The working tree and local branch are **not** modified.
+- Diffs are computed against `origin/<branch>` vs local `HEAD`, so the tool shows what *would* change on pull without touching the working tree.
+- Timeout: default **120 seconds** per repo, configurable via `--timeout <seconds>`.
+- On failure: record error in report, mark repo as `FETCH_FAILED`, continue to next repo.
+
+**With `--pull`: pull mode**
 
 ```
 git pull --ff-only
@@ -67,7 +81,6 @@ git pull --ff-only
 - Use `--ff-only` by default to avoid creating merge commits.
 - Flag `--pull-strategy <ff-only|rebase|merge>` overrides this.
 - Capture pull stdout/stderr for the report.
-- Timeout: default **120 seconds** per repo, configurable via `--timeout <seconds>`.
 - On failure: record error in report, mark repo as `PULL_FAILED`, continue to next repo.
 
 ### 3.4 — Post-Pull State Capture
@@ -341,6 +354,14 @@ Every extracted element with its code snippet is automatically scanned for **sec
 | `concurrency` | `mutex`, `lock`, `atomic`, `thread`, `async`, `await`, `spawn`, `channel`, `sync`, `race`, `deadlock`, `semaphore` |
 | `privilege-change` | `sudo`, `root`, `admin`, `superuser`, `escalat`, `setuid`, `capability`, `is_admin`, `role.*admin` |
 
+#### 3.8.1.1 — Noise Reduction
+
+To avoid overwhelming reports with false positives on common patterns:
+
+- **Minimum match threshold**: Tags with broad patterns (e.g., `network`, `error-handling`, `logging`) require **2+ distinct pattern matches** within the same element to trigger. Tags with specific patterns (e.g., `crypto`, `unsafe-code`, `sql-injection`) trigger on a single match.
+- **Negative patterns**: Each tag definition supports an optional `negative_patterns` list. If a negative pattern matches, the tag is suppressed. Example: `network` tag suppresses on `test_url`, `mock_request`, `example.com`.
+- **File-path exclusions**: Elements in `test/`, `tests/`, `spec/`, `__tests__/`, `*_test.*`, `*_spec.*` paths are tagged but marked with `"in_test": true` and excluded from `high_attention_items` by default (overridable with `--include-test-security`).
+
 #### 3.8.2 — Tagging Rules
 
 1. **Pattern match** is case-insensitive.
@@ -486,6 +507,8 @@ Where:
 - `ext` = original file extension (`.rs`, `.py`, `.js`, etc.) or `.diff` for the diff view
 
 For **Modified** elements, three files are emitted: `_BEFORE.<ext>`, `_AFTER.<ext>`, `_.<ext>.diff`.
+
+> **Deduplication**: Snippets are stored as individual files in `snippets/` and referenced by path in `summary_*.json`. The `summary_*.txt` and `summary_*.md` files reference snippet files rather than inlining full code to avoid 4× data duplication. Short previews (first 5 lines) are still inlined for quick scanning.
 
 #### Naming Collisions
 
@@ -716,15 +739,15 @@ Scanned at: 2025-01-15T10:30:00Z
   ],
   "element_summary": {
     "total_elements": 8,
-    "functions_added": 1,
-    "functions_modified": 1,
-    "functions_removed": 0,
-    "structs_modified": 1,
-    "impls_added": 1,
-    "configs_added": 1,
-    "configs_modified": 1,
-    "imports_added": 2,
-    "other_changes": 0
+    "by_change_type": { "Added": 3, "Modified": 3, "Removed": 2 },
+    "by_kind": {
+      "Function": { "added": 1, "modified": 1, "removed": 0 },
+      "Struct": { "added": 0, "modified": 1, "removed": 0 },
+      "Impl": { "added": 1, "modified": 0, "removed": 0 },
+      "Config": { "added": 1, "modified": 1, "removed": 0 },
+      "Import": { "added": 2, "modified": 0, "removed": 0 }
+    },
+    "top_elements": ["validate_token", "check_permissions", "UserProfile"]
   },
   "security_review": {
     "total_security_tagged_elements": 4,
@@ -990,8 +1013,9 @@ git-patrol [OPTIONS] <ROOT_DIR>
 | `--nested` | | `false` | Recurse into repos to find nested repos |
 | `--follow-symlinks` | | `false` | Follow symbolic links during scan |
 | `--skip-hidden` | | `false` | Skip hidden directories (dot-prefixed) except `.git` |
-| `--force-pull` | | `false` | Stash dirty repos before pull, pop after |
-| `--no-pull` | | `false` | Skip pulling; only capture state and generate historical diffs |
+| `--pull` | | `false` | Actually pull (modify working tree) instead of fetch-only. Enables `--force-pull` and `--pull-strategy`. |
+| `--force-pull` | | `false` | Stash dirty repos before pull, pop after (requires `--pull`) |
+| `--no-pull` | | `false` | Skip fetching/pulling; only capture state and generate historical diffs |
 | `--history-depth <N>` | `-d` | `2` | Number of historical commits to diff (min 1, max 10) |
 | `--parallel <N>` | `-j` | `4` | Number of repos to process concurrently |
 | `--quiet` | `-q` | `false` | Suppress stdout progress; only write report files |
@@ -1005,7 +1029,8 @@ git-patrol [OPTIONS] <ROOT_DIR>
 | `--snippet-context <N>` | | `5` | Lines of context above/below changed lines in snippets |
 | `--max-snippet-lines <N>` | | `200` | Max lines per individual snippet (truncate with note) |
 | `--max-elements <N>` | | `500` | Max elements to extract per diff (safety cap) |
-| `--summary-format <FORMATS>` | | `json,txt,md` | Comma-separated list of summary formats to generate |
+| `--summary-format <FORMATS>` | | `json,md` | Comma-separated list of summary formats to generate |
+| `--incremental` | | `false` | Skip repos unchanged since the last run (requires previous report directory via `-o`) |
 | `--security-tags-file <PATH>` | | (built-in) | Custom JSON file defining security tag patterns (overrides defaults) |
 | `--help` | `-h` | | Print help |
 | `--version` | `-V` | | Print version |
@@ -1171,8 +1196,9 @@ src/
 | `regex` | Element + security pattern matching |
 | `lazy_static` or `once_cell` | Compiled regex caching |
 | `glob` | Branch filter pattern matching |
+| `git2` | Git operations (state capture, fetch, diff generation, file retrieval) |
 
-**No `libgit2` / `git2` crate** — shell out to `git` CLI directly. The `git` binary is a hard prerequisite.
+**Uses `git2` (libgit2 bindings)** for all git operations. This avoids per-operation process spawning overhead, provides structured error handling, and eliminates stdout parsing fragility. The `git` CLI binary is NOT required.
 
 ---
 
@@ -1498,6 +1524,9 @@ Exit codes:
 - **Snippet cap**: `--max-snippet-lines` prevents enormous snippets from bloating the report.
 - **Large repos**: The `--timeout` flag prevents hanging on massive pulls.
 - **Disk usage**: For repos with massive diffs, the `snippets/` directory can grow large. Consider adding `--no-snippet-files` to skip writing individual files (keep them inline in JSON only).
+- **Cross-diff caching**: When generating multiple diffs (N vs N-1, N-1 vs N-2), file contents from shared commits (e.g., N-1) are fetched once and reused across diffs via an in-memory LRU cache keyed by `(commit_hash, file_path)`.
+- **Intra-repo parallelism**: For repos with many changed files, per-file element extraction and security tagging are parallelized using `rayon`'s nested thread pool, bounded by `--parallel`.
+- **Incremental mode**: The tool writes a `.git-patrol-state.json` in the report directory recording `(repo_path, last_seen_hash)`. On subsequent runs with `--incremental`, repos whose HEAD matches the last-seen hash are skipped entirely. This dramatically speeds up repeated scans.
 
 ---
 
