@@ -97,6 +97,127 @@ fn invalid_custom_security_file_returns_error() {
     assert!(msg.contains("invalid security tag mode"));
 }
 
+#[test]
+fn zero_commit_repo_reports_failure_without_panicking() {
+    let tmp = tempdir().expect("temp dir");
+    let repo = tmp.path().join("zero");
+    std::fs::create_dir_all(&repo).expect("create repo");
+    run_git(&repo, &["init"]);
+
+    let cfg = processor_config(tmp.path(), true);
+    let result = process_repository(&repo, &cfg);
+
+    assert!(matches!(result.status, RepoStatus::FetchFailed { .. }));
+    assert!(!result.errors.is_empty());
+}
+
+#[test]
+fn merge_commit_repo_is_processed_without_crash() {
+    let tmp = tempdir().expect("temp dir");
+    let repo = tmp.path().join("merge");
+    std::fs::create_dir_all(&repo).expect("create repo");
+    init_repo_with_commit(&repo);
+
+    run_git(&repo, &["checkout", "-b", "feature"]);
+    std::fs::write(repo.join("feature.txt"), "feature branch\n").expect("write feature");
+    run_git(&repo, &["add", "."]);
+    run_git(&repo, &["commit", "-m", "feature change"]);
+
+    run_git(&repo, &["checkout", "master"]);
+    std::fs::write(repo.join("master.txt"), "master branch\n").expect("write master");
+    run_git(&repo, &["add", "."]);
+    run_git(&repo, &["commit", "-m", "master change"]);
+
+    run_git(&repo, &["merge", "--no-ff", "--no-edit", "feature"]);
+
+    let mut cfg = processor_config(tmp.path(), true);
+    cfg.history_depth = 3;
+    let result = process_repository(&repo, &cfg);
+
+    assert!(matches!(result.status, RepoStatus::UpToDate));
+    assert!(!result.diffs.is_empty());
+}
+
+#[test]
+fn scanner_handles_submodule_layout() {
+    let tmp = tempdir().expect("temp dir");
+    let root = tmp.path();
+
+    let child = root.join("child");
+    std::fs::create_dir_all(&child).expect("create child");
+    init_repo_with_commit(&child);
+
+    let parent = root.join("parent");
+    std::fs::create_dir_all(&parent).expect("create parent");
+    init_repo_with_commit(&parent);
+
+    run_git(
+        &parent,
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            child.to_string_lossy().as_ref(),
+            "modules/child",
+        ],
+    );
+    run_git(&parent, &["commit", "-m", "add submodule"]);
+
+    let discovered = discover_repositories(
+        root,
+        &ScanOptions {
+            nested: true,
+            follow_symlinks: false,
+            skip_hidden: false,
+            include_bare: false,
+        },
+    )
+    .expect("scan root");
+
+    assert!(discovered.contains(&parent));
+}
+
+#[test]
+fn non_utf8_file_changes_are_processed_without_panicking() {
+    let tmp = tempdir().expect("temp dir");
+    let repo = tmp.path().join("non-utf8");
+    std::fs::create_dir_all(&repo).expect("create repo");
+    init_repo_with_commit(&repo);
+
+    std::fs::write(repo.join("blob.bin"), [0xff_u8, 0xfe, 0x00]).expect("write binary v1");
+    run_git(&repo, &["add", "."]);
+    run_git(&repo, &["commit", "-m", "add binary"]);
+
+    std::fs::write(repo.join("blob.bin"), [0xff_u8, 0xfe, 0x01]).expect("write binary v2");
+    run_git(&repo, &["add", "."]);
+    run_git(&repo, &["commit", "-m", "update binary"]);
+
+    let cfg = processor_config(tmp.path(), true);
+    let result = process_repository(&repo, &cfg);
+
+    assert!(matches!(result.status, RepoStatus::UpToDate));
+    assert!(!result.diffs.is_empty());
+    assert!(result.diffs.iter().any(|diff| diff.file_changes.iter().any(|f| {
+        f.path.ends_with("blob.bin") && (f.is_binary || f.elements.is_empty())
+    })));
+}
+
+#[test]
+fn history_depth_one_produces_empty_diff_set_for_up_to_date_repo() {
+    let tmp = tempdir().expect("temp dir");
+    let repo = tmp.path().join("single-history");
+    std::fs::create_dir_all(&repo).expect("create repo");
+    init_repo_with_commit(&repo);
+
+    let mut cfg = processor_config(tmp.path(), true);
+    cfg.history_depth = 1;
+
+    let result = process_repository(&repo, &cfg);
+    assert!(matches!(result.status, RepoStatus::UpToDate));
+    assert!(result.diffs.is_empty());
+}
+
 fn processor_config(root: &Path, include_detached: bool) -> ProcessorConfig {
     ProcessorConfig {
         root_dir: root.to_path_buf(),
