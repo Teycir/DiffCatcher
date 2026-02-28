@@ -319,7 +319,9 @@ pub fn builtin_patterns() -> Vec<SecurityTagDefinition> {
                 "createHash\\(['\"]sha1",
             ],
             "Use of weak or deprecated hash function (MD5, SHA-1). Prefer SHA-256+ or BLAKE3.",
-            vec!["https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"],
+            vec![
+                "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
+            ],
             Some("May match in comments or string literals referencing algorithm names."),
         ),
         tag_with_meta(
@@ -369,10 +371,7 @@ pub fn builtin_patterns() -> Vec<SecurityTagDefinition> {
             "operator-misuse",
             TagSeverity::Medium,
             1,
-            vec![
-                r"[^!=<>]==[^=]",
-                r"if\s*\([^)]*=[^=]",
-            ],
+            vec![r"[^!=<>]==[^=]", r"if\s*\([^)]*=[^=]"],
             "Potential operator misuse: == instead of === or assignment in conditional.",
             vec![
                 "https://cwe.mitre.org/data/definitions/480.html",

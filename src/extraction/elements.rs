@@ -115,12 +115,30 @@ static RUST_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
 
 static PYTHON_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
     vec![
-        ElementPattern { kind: ElementKind::Function, regex: Regex::new(r"^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Class, regex: Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Import, regex: Regex::new(r"^\s*(?:from\s+\S+\s+)?import\s+(.+)").unwrap() },
-        ElementPattern { kind: ElementKind::Constant, regex: Regex::new(r"^([A-Z][A-Z0-9_]+)\s*=").unwrap() },
-        ElementPattern { kind: ElementKind::Test, regex: Regex::new(r"^\s*def\s+(test_[A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Config, regex: Regex::new(r"^\s*@(\w+)").unwrap() },
+        ElementPattern {
+            kind: ElementKind::Function,
+            regex: Regex::new(r"^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Class,
+            regex: Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Import,
+            regex: Regex::new(r"^\s*(?:from\s+\S+\s+)?import\s+(.+)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Constant,
+            regex: Regex::new(r"^([A-Z][A-Z0-9_]+)\s*=").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Test,
+            regex: Regex::new(r"^\s*def\s+(test_[A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Config,
+            regex: Regex::new(r"^\s*@(\w+)").unwrap(),
+        },
     ]
 });
 
@@ -143,16 +161,46 @@ static JAVASCRIPT_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
 
 static GO_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
     vec![
-        ElementPattern { kind: ElementKind::Function, regex: Regex::new(r"^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Method, regex: Regex::new(r"^\s*func\s+\([^)]+\)\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Struct, regex: Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+struct\b").unwrap() },
-        ElementPattern { kind: ElementKind::Interface, regex: Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+interface\b").unwrap() },
-        ElementPattern { kind: ElementKind::TypeAlias, regex: Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+[^si]").unwrap() },
-        ElementPattern { kind: ElementKind::Import, regex: Regex::new(r"^\s*import\s+(.+)").unwrap() },
-        ElementPattern { kind: ElementKind::Constant, regex: Regex::new(r"^\s*const\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Static, regex: Regex::new(r"^\s*var\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Module, regex: Regex::new(r"^\s*package\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Test, regex: Regex::new(r"^\s*func\s+(Test[A-Za-z0-9_]*)").unwrap() },
+        ElementPattern {
+            kind: ElementKind::Function,
+            regex: Regex::new(r"^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Method,
+            regex: Regex::new(r"^\s*func\s+\([^)]+\)\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Struct,
+            regex: Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+struct\b").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Interface,
+            regex: Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+interface\b").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::TypeAlias,
+            regex: Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+[^si]").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Import,
+            regex: Regex::new(r"^\s*import\s+(.+)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Constant,
+            regex: Regex::new(r"^\s*const\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Static,
+            regex: Regex::new(r"^\s*var\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Module,
+            regex: Regex::new(r"^\s*package\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Test,
+            regex: Regex::new(r"^\s*func\s+(Test[A-Za-z0-9_]*)").unwrap(),
+        },
     ]
 });
 
@@ -173,14 +221,38 @@ static JAVA_KOTLIN_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
 
 static RUBY_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
     vec![
-        ElementPattern { kind: ElementKind::Function, regex: Regex::new(r"^\s*def\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_!?]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Class, regex: Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Module, regex: Regex::new(r"^\s*module\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Import, regex: Regex::new(r"^\s*require(?:_relative)?\s+(.+)").unwrap() },
-        ElementPattern { kind: ElementKind::Import, regex: Regex::new(r"^\s*include\s+([A-Za-z_][A-Za-z0-9_:]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Config, regex: Regex::new(r"^\s*attr_(?:accessor|reader|writer)\s+(.+)").unwrap() },
-        ElementPattern { kind: ElementKind::Constant, regex: Regex::new(r"^\s*([A-Z][A-Z0-9_]+)\s*=").unwrap() },
-        ElementPattern { kind: ElementKind::Test, regex: Regex::new(r#"^\s*(?:def\s+test_|it\s+['"]|describe\s+['"])"#).unwrap() },
+        ElementPattern {
+            kind: ElementKind::Function,
+            regex: Regex::new(r"^\s*def\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_!?]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Class,
+            regex: Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Module,
+            regex: Regex::new(r"^\s*module\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Import,
+            regex: Regex::new(r"^\s*require(?:_relative)?\s+(.+)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Import,
+            regex: Regex::new(r"^\s*include\s+([A-Za-z_][A-Za-z0-9_:]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Config,
+            regex: Regex::new(r"^\s*attr_(?:accessor|reader|writer)\s+(.+)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Constant,
+            regex: Regex::new(r"^\s*([A-Z][A-Z0-9_]+)\s*=").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Test,
+            regex: Regex::new(r#"^\s*(?:def\s+test_|it\s+['"]|describe\s+['"])"#).unwrap(),
+        },
     ]
 });
 
@@ -200,10 +272,22 @@ static C_CPP_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
 
 static SHELL_PATTERNS: Lazy<Vec<ElementPattern>> = Lazy::new(|| {
     vec![
-        ElementPattern { kind: ElementKind::Function, regex: Regex::new(r"^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)").unwrap() },
-        ElementPattern { kind: ElementKind::Function, regex: Regex::new(r"^\s*function\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap() },
-        ElementPattern { kind: ElementKind::Constant, regex: Regex::new(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]+)=").unwrap() },
-        ElementPattern { kind: ElementKind::Import, regex: Regex::new(r"^\s*(?:source|\\.)\s+(.+)").unwrap() },
+        ElementPattern {
+            kind: ElementKind::Function,
+            regex: Regex::new(r"^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Function,
+            regex: Regex::new(r"^\s*function\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Constant,
+            regex: Regex::new(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]+)=").unwrap(),
+        },
+        ElementPattern {
+            kind: ElementKind::Import,
+            regex: Regex::new(r"^\s*(?:source|\\.)\s+(.+)").unwrap(),
+        },
     ]
 });
 

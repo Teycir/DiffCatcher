@@ -19,8 +19,7 @@ pub struct ParsedDiff {
 }
 
 static HUNK_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@\s*(.*)$")
-        .expect("valid regex")
+    Regex::new(r"^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@\s*(.*)$").expect("valid regex")
 });
 
 pub fn parse_unified_diff(input: &str) -> ParsedDiff {

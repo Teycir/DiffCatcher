@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::types::{
-    ChangedElement, DiffResult, RepoResult, SecurityTagDefinition, TagSeverity,
-};
+use crate::types::{ChangedElement, DiffResult, RepoResult, SecurityTagDefinition, TagSeverity};
 
 const SARIF_SCHEMA: &str =
     "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
@@ -167,9 +165,10 @@ fn build_rules(tag_defs: &[SecurityTagDefinition]) -> (Vec<SarifRule>, BTreeMap<
             default_configuration: SarifRuleConfiguration {
                 level: severity_to_level(&def.severity).to_string(),
             },
-            help: def.false_positive_note.as_ref().map(|note| SarifMessage {
-                text: note.clone(),
-            }),
+            help: def
+                .false_positive_note
+                .as_ref()
+                .map(|note| SarifMessage { text: note.clone() }),
             properties: Some(SarifRuleProperties {
                 tags: vec!["security".to_string()],
             }),
@@ -210,9 +209,7 @@ fn element_to_results(
         let rule_id = format!("DC/{}", tag);
         let rule_index = rule_index_map.get(tag).copied();
 
-        let severity = tag_severity
-            .get(tag)
-            .unwrap_or(&TagSeverity::Medium);
+        let severity = tag_severity.get(tag).unwrap_or(&TagSeverity::Medium);
         let level = severity_to_level(severity).to_string();
 
         let snippet_text = element
@@ -220,13 +217,7 @@ fn element_to_results(
             .after
             .as_ref()
             .or(element.snippet.before.as_ref())
-            .map(|s| {
-                s.code
-                    .lines()
-                    .take(10)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            });
+            .map(|s| s.code.lines().take(10).collect::<Vec<_>>().join("\n"));
 
         let region = element.line_range.map(|(start, end)| SarifRegion {
             start_line: Some(start),
@@ -287,7 +278,10 @@ pub fn build_sarif_from_results(
     let tag_severity: BTreeMap<String, TagSeverity> = tag_defs
         .iter()
         .map(|d| (d.tag.clone(), d.severity.clone()))
-        .chain(std::iter::once(("security-removal".to_string(), TagSeverity::High)))
+        .chain(std::iter::once((
+            "security-removal".to_string(),
+            TagSeverity::High,
+        )))
         .collect();
 
     let mut results = Vec::new();
@@ -322,9 +316,7 @@ pub fn build_sarif_from_results(
                 driver: SarifDriver {
                     name: "DiffCatcher".to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
-                    information_uri: Some(
-                        "https://github.com/Teycir/DiffCatcher".to_string(),
-                    ),
+                    information_uri: Some("https://github.com/Teycir/DiffCatcher".to_string()),
                     rules,
                 },
             },

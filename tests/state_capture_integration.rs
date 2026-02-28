@@ -148,6 +148,7 @@ fn processor_config(
             snippet_context: 2,
             max_snippet_lines: 20,
             max_elements: 50,
+            include_vendor: false,
         },
         no_security_tags: true,
         include_detached: true,

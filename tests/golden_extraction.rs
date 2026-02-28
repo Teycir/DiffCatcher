@@ -154,6 +154,7 @@ fn extract(
             snippet_context: 5,
             max_snippet_lines: 200,
             max_elements: 100,
+            include_vendor: false,
         },
     )
 }

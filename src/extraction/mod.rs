@@ -26,6 +26,7 @@ pub struct ExtractionOptions {
     pub snippet_context: u32,
     pub max_snippet_lines: u32,
     pub max_elements: usize,
+    pub include_vendor: bool,
 }
 
 pub fn extract_from_patch(
@@ -55,7 +56,8 @@ pub fn extract_from_patch(
             let is_binary = file.is_binary;
             let hunks = file.hunks;
 
-            let elements = if options.no_summary_extraction || is_binary {
+            let is_vendor = !options.include_vendor && is_vendor_or_generated(&file_path);
+            let elements = if options.no_summary_extraction || is_binary || is_vendor {
                 Vec::new()
             } else {
                 let detected = detect_elements(&file_path, &hunks, options.max_elements, &language);
@@ -190,6 +192,46 @@ fn build_element_summary(elements: Vec<ChangedElement>) -> ElementSummary {
         elements,
         top_elements,
     }
+}
+
+fn is_vendor_or_generated(path: &str) -> bool {
+    let lowered = path.to_lowercase();
+    // Directory-based skip
+    let vendor_dirs = [
+        "/node_modules/",
+        "/vendor/",
+        "/third_party/",
+        "/third-party/",
+        "/build/",
+        "/dist/",
+        "/.next/",
+        "/__pycache__/",
+        "/.venv/",
+        "/venv/",
+        "/target/",
+        "/bower_components/",
+        "/packages/",
+    ];
+    if vendor_dirs.iter().any(|d| lowered.contains(d)) {
+        return true;
+    }
+    // File-based skip (generated/minified files)
+    lowered.ends_with(".min.js")
+        || lowered.ends_with(".min.css")
+        || lowered.ends_with(".bundle.js")
+        || lowered.ends_with(".chunk.js")
+        || lowered.ends_with(".generated.rs")
+        || lowered.ends_with(".pb.go")
+        || lowered.ends_with(".pb.rs")
+        || lowered.ends_with(".Designer.cs")
+        || lowered == "package-lock.json"
+        || lowered == "yarn.lock"
+        || lowered == "pnpm-lock.yaml"
+        || lowered == "cargo.lock"
+        || lowered == "poetry.lock"
+        || lowered == "composer.lock"
+        || lowered == "gemfile.lock"
+        || lowered == "go.sum"
 }
 
 fn is_test_path(path: &str) -> bool {

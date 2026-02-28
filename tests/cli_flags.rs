@@ -33,6 +33,22 @@ fn pull_and_no_pull_are_mutually_exclusive() {
 }
 
 #[test]
+fn watch_requires_positive_interval() {
+    let tmp = tempdir().expect("temp dir");
+    let output = Command::new(bin())
+        .arg(tmp.path())
+        .arg("--watch")
+        .arg("--watch-interval")
+        .arg("0")
+        .output()
+        .expect("run diffcatcher");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--watch-interval must be >= 1 when --watch is enabled"));
+}
+
+#[test]
 fn no_snippets_and_no_security_tags_skip_snippet_dir_and_overview() {
     let tmp = tempdir().expect("temp dir");
     let root = tmp.path().join("root");

@@ -153,6 +153,7 @@ index 123..456 100644
             snippet_context: 5,
             max_snippet_lines: 200,
             max_elements: 100,
+            include_vendor: false,
         },
     );
 

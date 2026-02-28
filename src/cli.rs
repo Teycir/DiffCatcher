@@ -56,6 +56,20 @@ pub struct Cli {
     pub output: Option<PathBuf>,
 
     #[arg(
+        long = "watch",
+        action = ArgAction::SetTrue,
+        help = "Run continuously and rescan at a fixed interval"
+    )]
+    pub watch: bool,
+
+    #[arg(
+        long = "watch-interval",
+        default_value_t = 300,
+        help = "Seconds between watch iterations (used with --watch)"
+    )]
+    pub watch_interval: u64,
+
+    #[arg(
         short = 's',
         long = "pull-strategy",
         value_enum,
@@ -253,6 +267,13 @@ pub struct Cli {
         help = "Include test-path elements when computing security tags"
     )]
     pub include_test_security: bool,
+
+    #[arg(
+        long = "include-vendor",
+        action = ArgAction::SetTrue,
+        help = "Include vendor/generated files in extraction (normally skipped)"
+    )]
+    pub include_vendor: bool,
 }
 
 impl Cli {
@@ -262,7 +283,9 @@ impl Cli {
                 return Err("--diff requires ROOT_DIR as the repo path".to_string());
             }
             if !diff_refs.contains("..") {
-                return Err("--diff value must be in BASE..HEAD format (e.g. main..feature)".to_string());
+                return Err(
+                    "--diff value must be in BASE..HEAD format (e.g. main..feature)".to_string(),
+                );
             }
             if self.pull || self.force_pull {
                 return Err("--diff cannot be used with --pull or --force-pull".to_string());
@@ -284,6 +307,9 @@ impl Cli {
         }
         if self.parallel == 0 {
             return Err("--parallel must be >= 1".to_string());
+        }
+        if self.watch && self.watch_interval == 0 {
+            return Err("--watch-interval must be >= 1 when --watch is enabled".to_string());
         }
         Ok(())
     }

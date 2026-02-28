@@ -27,7 +27,12 @@ pub fn capture_repo_state(repo: &Path, timeout_secs: u64, detect_dirty: bool) ->
     let ts = lines.next().unwrap_or_default();
     let ts_i = ts.parse::<i64>().unwrap_or(0);
     let full_message: String = lines.collect::<Vec<_>>().join("\n").trim().to_string();
-    let message = full_message.lines().next().unwrap_or_default().trim().to_string();
+    let message = full_message
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
 
     let branch = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "--abbrev-ref", "HEAD"])?;
 
@@ -73,7 +78,12 @@ pub fn capture_commit(repo: &Path, timeout_secs: u64, spec: &str) -> Result<Comm
     let ts = lines.next().unwrap_or_default();
     let ts_i = ts.parse::<i64>().unwrap_or(0);
     let full_message: String = lines.collect::<Vec<_>>().join("\n").trim().to_string();
-    let message = full_message.lines().next().unwrap_or_default().trim().to_string();
+    let message = full_message
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
 
     Ok(CommitInfo {
         hash,

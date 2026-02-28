@@ -238,6 +238,7 @@ fn processor_config(root: &Path, include_detached: bool) -> ProcessorConfig {
             snippet_context: 2,
             max_snippet_lines: 20,
             max_elements: 50,
+            include_vendor: false,
         },
         no_security_tags: true,
         include_detached,

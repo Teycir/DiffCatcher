@@ -108,7 +108,11 @@ pub fn process_diff_refs(
     };
 
     let pair = DiffPair {
-        label: format!("{}_vs_{}", head_ref.replace('/', "-"), base_ref.replace('/', "-")),
+        label: format!(
+            "{}_vs_{}",
+            head_ref.replace('/', "-"),
+            base_ref.replace('/', "-")
+        ),
         from: base_commit.hash.clone(),
         to: head_commit.hash.clone(),
     };
@@ -125,65 +129,61 @@ pub fn process_diff_refs(
             let patch_path = diff_dir.join(&artifacts.patch_filename);
             let patch_bytes = fs::read(&patch_path).unwrap_or_default();
 
-            let (file_changes, element_summary, security_review) = if patch_bytes.len()
-                > MAX_PATCH_BYTES
-            {
-                errors.push(format!(
-                    "diff {} exceeds {} bytes; extraction skipped",
-                    pair.label, MAX_PATCH_BYTES
-                ));
-                (file_level_fallback(&artifacts.name_status), None, None)
-            } else {
-                let patch_text = String::from_utf8_lossy(&patch_bytes).to_string();
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    extract_from_patch(
-                        &patch_text,
-                        &artifacts.name_status,
-                        &base_commit.hash,
-                        &head_commit.hash,
-                        extraction,
-                    )
-                })) {
-                    Ok((mut file_changes, element_summary)) => {
-                        apply_git_show_diffonly_fallback(
-                            repo_path,
-                            timeout_secs,
+            let (file_changes, element_summary, security_review) =
+                if patch_bytes.len() > MAX_PATCH_BYTES {
+                    errors.push(format!(
+                        "diff {} exceeds {} bytes; extraction skipped",
+                        pair.label, MAX_PATCH_BYTES
+                    ));
+                    (file_level_fallback(&artifacts.name_status), None, None)
+                } else {
+                    let patch_text = String::from_utf8_lossy(&patch_bytes).to_string();
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        extract_from_patch(
+                            &patch_text,
+                            &artifacts.name_status,
                             &base_commit.hash,
                             &head_commit.hash,
-                            &mut file_changes,
-                            &mut retrieval_cache,
-                            &mut errors,
-                        );
-
-                        let security_review = if no_security_tags {
-                            None
-                        } else {
-                            match tag_file_changes(
+                            extraction,
+                        )
+                    })) {
+                        Ok((mut file_changes, element_summary)) => {
+                            apply_git_show_diffonly_fallback(
+                                repo_path,
+                                timeout_secs,
+                                &base_commit.hash,
+                                &head_commit.hash,
                                 &mut file_changes,
-                                tag_definitions,
-                                include_test_security,
-                            ) {
-                                Ok(review) => Some(review),
-                                Err(err) => {
-                                    errors.push(format!(
-                                        "security tagging failed: {}",
-                                        err
-                                    ));
-                                    None
+                                &mut retrieval_cache,
+                                &mut errors,
+                            );
+
+                            let security_review = if no_security_tags {
+                                None
+                            } else {
+                                match tag_file_changes(
+                                    &mut file_changes,
+                                    tag_definitions,
+                                    include_test_security,
+                                ) {
+                                    Ok(review) => Some(review),
+                                    Err(err) => {
+                                        errors.push(format!("security tagging failed: {}", err));
+                                        None
+                                    }
                                 }
-                            }
-                        };
-                        (file_changes, element_summary, security_review)
-                    }
-                    Err(_) => {
-                        errors.push(format!(
+                            };
+                            (file_changes, element_summary, security_review)
+                        }
+                        Err(_) => {
+                            errors.push(format!(
                             "element extraction panicked for {}; falling back to file-level report",
                             pair.label
                         ));
-                        (file_level_fallback(&artifacts.name_status), None, None)
+                            (file_level_fallback(&artifacts.name_status), None, None)
+                        }
                     }
-                }
-            };
+                };
 
             diffs.push(DiffResult {
                 label: pair.label,

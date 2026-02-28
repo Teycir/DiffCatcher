@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -13,7 +15,7 @@ use diffcatcher::cli::{Cli, SummaryFormat};
 use diffcatcher::error::{PatrolError, Result};
 use diffcatcher::extraction::ExtractionOptions;
 use diffcatcher::git::commands::run_git_expect_stdout;
-use diffcatcher::processor::{ProcessorConfig, process_repository, process_diff_refs};
+use diffcatcher::processor::{ProcessorConfig, process_diff_refs, process_repository};
 use diffcatcher::report::writer::{prepare_report_dir, write_repo_report, write_top_level_reports};
 use diffcatcher::scanner::{ScanOptions, discover_repositories};
 use diffcatcher::security::{load_tag_definitions, overview::build_global_security_overview};
@@ -43,12 +45,49 @@ fn run() -> Result<i32> {
         return Err(PatrolError::MissingRoot(root_dir.clone()));
     }
 
-    let report_dir = prepare_report_dir(cli.output.as_deref(), cli.overwrite)?;
     let tag_definitions = load_tag_definitions(cli.security_tags_file.as_deref())?;
+
+    if cli.watch {
+        return run_watch_mode(&cli, &root_dir, &tag_definitions);
+    }
+
+    run_once(&cli, &root_dir, &tag_definitions)
+}
+
+fn run_watch_mode(
+    cli: &Cli,
+    root_dir: &Path,
+    tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
+) -> Result<i32> {
+    loop {
+        let exit_code = match run_once(cli, root_dir, tag_definitions) {
+            Ok(code) => code,
+            Err(err) => {
+                eprintln!("watch iteration failed: {}", err);
+                1
+            }
+        };
+
+        if !cli.quiet {
+            println!(
+                "Watch iteration finished with exit code {}. Sleeping {}s before next run.",
+                exit_code, cli.watch_interval
+            );
+        }
+        thread::sleep(Duration::from_secs(cli.watch_interval));
+    }
+}
+
+fn run_once(
+    cli: &Cli,
+    root_dir: &Path,
+    tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
+) -> Result<i32> {
+    let report_dir = prepare_report_dir(cli.output.as_deref(), cli.overwrite)?;
 
     // Branch-diff mode: diff two refs in a single repo.
     if let Some((base, head)) = cli.parsed_diff_refs() {
-        return run_diff_mode(&cli, &root_dir, &report_dir, &tag_definitions, base, head);
+        return run_diff_mode(cli, root_dir, &report_dir, tag_definitions, base, head);
     }
 
     // Standard scan mode.
@@ -59,7 +98,7 @@ fn run() -> Result<i32> {
         include_bare: cli.include_bare,
     };
 
-    let mut repos = discover_repositories(&root_dir, &scan_options)?;
+    let mut repos = discover_repositories(root_dir, &scan_options)?;
     repos.sort();
 
     if cli.verbose && !cli.quiet {
@@ -80,10 +119,11 @@ fn run() -> Result<i32> {
         snippet_context: cli.snippet_context,
         max_snippet_lines: cli.max_snippet_lines,
         max_elements: cli.max_elements,
+        include_vendor: cli.include_vendor,
     };
 
     let processor_cfg = ProcessorConfig {
-        root_dir: root_dir.clone(),
+        root_dir: root_dir.to_path_buf(),
         report_dir: report_dir.clone(),
         timeout_secs: cli.timeout,
         pull_mode: cli.effective_pull_mode(),
@@ -97,7 +137,7 @@ fn run() -> Result<i32> {
         no_security_tags: cli.no_security_tags,
         include_detached: cli.include_detached,
         include_test_security: cli.include_test_security,
-        tag_definitions: tag_definitions.clone(),
+        tag_definitions: tag_definitions.to_vec(),
         verbose: cli.verbose,
     };
 
@@ -124,11 +164,11 @@ fn run() -> Result<i32> {
 
     results.sort_by(|a, b| a.report_folder_name.cmp(&b.report_folder_name));
 
-    results.par_iter_mut().try_for_each(|repo| {
-        write_repo_report(&report_dir, repo, &cli.summary_formats)
-    })?;
+    results
+        .par_iter_mut()
+        .try_for_each(|repo| write_repo_report(&report_dir, repo, &cli.summary_formats))?;
 
-    let summary = GlobalSummary::from_results(root_dir.clone(), report_dir.clone(), &results);
+    let summary = GlobalSummary::from_results(root_dir.to_path_buf(), report_dir.clone(), &results);
     let security_overview = if cli.no_security_tags {
         None
     } else {
@@ -136,7 +176,7 @@ fn run() -> Result<i32> {
     };
 
     write_top_level_reports(&report_dir, &summary, security_overview.as_ref())?;
-    write_sarif_if_requested(&cli, &report_dir, &results, &tag_definitions)?;
+    write_sarif_if_requested(cli, &report_dir, &results, tag_definitions)?;
     persist_incremental_state(&report_dir, &results)?;
 
     if cli.json_stdout {
@@ -168,6 +208,7 @@ fn run_diff_mode(
         snippet_context: cli.snippet_context,
         max_snippet_lines: cli.max_snippet_lines,
         max_elements: cli.max_elements,
+        include_vendor: cli.include_vendor,
     };
 
     let mut result = process_diff_refs(
@@ -186,11 +227,8 @@ fn run_diff_mode(
     write_repo_report(report_dir, &mut result, &cli.summary_formats)?;
 
     let results = vec![result];
-    let summary = GlobalSummary::from_results(
-        repo_path.to_path_buf(),
-        report_dir.to_path_buf(),
-        &results,
-    );
+    let summary =
+        GlobalSummary::from_results(repo_path.to_path_buf(), report_dir.to_path_buf(), &results);
     let security_overview = if cli.no_security_tags {
         None
     } else {
@@ -281,9 +319,8 @@ fn filter_incremental_repos(
         .into_par_iter()
         .filter(|repo| {
             let key = repo.display().to_string();
-            let current_head =
-                run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "HEAD"])
-                    .unwrap_or_default();
+            let current_head = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "HEAD"])
+                .unwrap_or_default();
             previous
                 .get(&key)
                 .is_none_or(|last_hash| last_hash != &current_head)

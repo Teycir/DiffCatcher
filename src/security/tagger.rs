@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use fancy_regex::Regex as FancyRegex;
 use rayon::prelude::*;
@@ -32,6 +33,8 @@ struct CompiledTag {
     negative_patterns: Vec<CompiledPattern>,
 }
 
+static TAG_CACHE: OnceLock<Mutex<BTreeMap<String, Arc<Vec<CompiledTag>>>>> = OnceLock::new();
+
 pub fn tag_file_changes(
     file_changes: &mut [FileChangeDetail],
     defs: &[SecurityTagDefinition],
@@ -40,7 +43,7 @@ pub fn tag_file_changes(
     let compiled = compile_tags(defs)?;
     let partials = file_changes
         .par_iter_mut()
-        .map(|file| process_file_tags(file, &compiled, defs, include_test_security))
+        .map(|file| process_file_tags(file, compiled.as_slice(), defs, include_test_security))
         .collect::<Vec<_>>();
 
     let mut review = SecurityReview::default();
@@ -69,7 +72,28 @@ fn compile_pattern(pattern: &str, kind: Option<PatternKind>) -> Result<CompiledP
     }
 }
 
-fn compile_tags(defs: &[SecurityTagDefinition]) -> Result<Vec<CompiledTag>> {
+fn compile_tags(defs: &[SecurityTagDefinition]) -> Result<Arc<Vec<CompiledTag>>> {
+    let cache_key = serde_json::to_string(defs)?;
+    let cache = TAG_CACHE.get_or_init(|| Mutex::new(BTreeMap::new()));
+
+    {
+        let guard = cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(compiled) = guard.get(&cache_key) {
+            return Ok(compiled.clone());
+        }
+    }
+
+    let compiled = Arc::new(compile_tags_uncached(defs)?);
+    let mut guard = cache
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let entry = guard.entry(cache_key).or_insert_with(|| compiled.clone());
+    Ok(entry.clone())
+}
+
+fn compile_tags_uncached(defs: &[SecurityTagDefinition]) -> Result<Vec<CompiledTag>> {
     let mut compiled = Vec::with_capacity(defs.len());
 
     for def in defs {
@@ -346,7 +370,9 @@ const DANGEROUS_COMBOS: &[(&[&str], &str)] = &[
 fn apply_composition_escalation(review: &mut SecurityReview) {
     for element in &review.flagged_elements {
         for (combo, reason) in DANGEROUS_COMBOS {
-            let all_present = combo.iter().all(|tag| element.security_tags.contains(&tag.to_string()));
+            let all_present = combo
+                .iter()
+                .all(|tag| element.security_tags.contains(&tag.to_string()));
             if !all_present {
                 continue;
             }

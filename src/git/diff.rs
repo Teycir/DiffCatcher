@@ -96,15 +96,10 @@ pub fn generate_diff_artifacts(
     let patch_output = run_git(repo, timeout_secs, &["diff", &range])?;
     fs::write(&patch_path, patch_output.stdout.as_bytes())?;
 
-    let name_status_output = run_git(
-        repo,
-        timeout_secs,
-        &["diff", "--name-status", &range],
-    )?;
+    let name_status_output = run_git(repo, timeout_secs, &["diff", "--name-status", &range])?;
 
-    let numstat_output =
-        run_git_expect_stdout(repo, timeout_secs, &["diff", "--numstat", &range])
-            .unwrap_or_default();
+    let numstat_output = run_git_expect_stdout(repo, timeout_secs, &["diff", "--numstat", &range])
+        .unwrap_or_default();
 
     let mut changes_content = String::new();
     if !numstat_output.is_empty() {

@@ -163,39 +163,39 @@ pub fn render_diff_summary(diff: &DiffResult) -> String {
     if let Some(sr) = &diff.security_review
         && sr.total_security_tagged_elements > 0
     {
-            let _ = writeln!(
-                out,
-                "## 🔒 Security Review ({} flagged)",
-                sr.total_security_tagged_elements
-            );
+        let _ = writeln!(
+            out,
+            "## 🔒 Security Review ({} flagged)",
+            sr.total_security_tagged_elements
+        );
+        let _ = writeln!(out);
+
+        // By tag table
+        if !sr.by_tag.is_empty() {
+            let _ = writeln!(out, "| Tag | Count |");
+            let _ = writeln!(out, "|-----|-------|");
+            for (tag, count) in &sr.by_tag {
+                let _ = writeln!(out, "| `{}` | {} |", tag, count);
+            }
             let _ = writeln!(out);
+        }
 
-            // By tag table
-            if !sr.by_tag.is_empty() {
-                let _ = writeln!(out, "| Tag | Count |");
-                let _ = writeln!(out, "|-----|-------|");
-                for (tag, count) in &sr.by_tag {
-                    let _ = writeln!(out, "| `{}` | {} |", tag, count);
-                }
-                let _ = writeln!(out);
-            }
-
-            if !sr.high_attention_items.is_empty() {
-                let _ = writeln!(out, "### ⚠️ High Attention Items");
-                let _ = writeln!(out);
-                for item in &sr.high_attention_items {
-                    let _ = writeln!(
-                        out,
-                        "- **{}**: `{}` in `{}`",
-                        item.reason, item.element_name, item.file_path
-                    );
-                    if !item.code_preview.is_empty() {
-                        let _ = writeln!(out, "  ```");
-                        let _ = writeln!(out, "  {}", item.code_preview);
-                        let _ = writeln!(out, "  ```");
-                    }
+        if !sr.high_attention_items.is_empty() {
+            let _ = writeln!(out, "### ⚠️ High Attention Items");
+            let _ = writeln!(out);
+            for item in &sr.high_attention_items {
+                let _ = writeln!(
+                    out,
+                    "- **{}**: `{}` in `{}`",
+                    item.reason, item.element_name, item.file_path
+                );
+                if !item.code_preview.is_empty() {
+                    let _ = writeln!(out, "  ```");
+                    let _ = writeln!(out, "  {}", item.code_preview);
+                    let _ = writeln!(out, "  ```");
                 }
             }
+        }
     }
 
     out
@@ -285,11 +285,7 @@ pub fn render_security_overview(overview: &GlobalSecurityOverview) -> String {
     let _ = writeln!(out);
     let _ = writeln!(out, "| Metric | Value |");
     let _ = writeln!(out, "|--------|-------|");
-    let _ = writeln!(
-        out,
-        "| Repos scanned | {} |",
-        overview.total_repos_scanned
-    );
+    let _ = writeln!(out, "| Repos scanned | {} |", overview.total_repos_scanned);
     let _ = writeln!(
         out,
         "| Repos with security flags | {} |",
