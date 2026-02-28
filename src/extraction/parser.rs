@@ -58,7 +58,10 @@ static HUNK_RE: Lazy<Regex> = Lazy::new(|| {
 /// let diff_output = "diff --git a/file.rs b/file.rs\n...";
 /// let parsed = parse_unified_diff(diff_output);
 /// for file in parsed.files {
-///     println!("File: {} (+{} -{})" file.new_path, file.insertions, file.deletions);
+///     println!(
+///         "File: {} (+{} -{})",
+///         file.new_path, file.insertions, file.deletions
+///     );
 /// }
 /// ```
 pub fn parse_unified_diff(input: &str) -> ParsedDiff {
@@ -99,12 +102,29 @@ pub fn parse_unified_diff(input: &str) -> ParsedDiff {
                 continue;
             }
 
-            if let Some(new_file_path) = line.strip_prefix("+++ b/") {
-                file.new_path = new_file_path.to_string();
+            if let Some(raw_new_path) = line.strip_prefix("+++ ") {
+                let new_path = raw_new_path
+                    .split('\t')
+                    .next()
+                    .unwrap_or(raw_new_path)
+                    .trim();
+                if new_path != "/dev/null" {
+                    file.new_path = new_path.strip_prefix("b/").unwrap_or(new_path).to_string();
+                }
                 continue;
             }
-            if let Some(old_file_path) = line.strip_prefix("--- a/") {
-                file.old_path = Some(old_file_path.to_string());
+            if let Some(raw_old_path) = line.strip_prefix("--- ") {
+                let old_path = raw_old_path
+                    .split('\t')
+                    .next()
+                    .unwrap_or(raw_old_path)
+                    .trim();
+                if old_path == "/dev/null" {
+                    file.old_path = None;
+                } else {
+                    file.old_path =
+                        Some(old_path.strip_prefix("a/").unwrap_or(old_path).to_string());
+                }
                 continue;
             }
             if let Some(rename_from) = line.strip_prefix("rename from ") {

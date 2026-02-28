@@ -15,6 +15,7 @@
 
 ### Progress Log
 
+- [x] 2026-03-01: Hardened unified diff parsing for `--- /dev/null` / `+++ /dev/null` headers, added parser regression tests (`tests/diff_parser.rs`), and aligned E2E/perf scripts with the `diffcatcher` binary name.
 - [x] 2026-02-28: Created granular commits for core, extraction, security, reporting, and tests.
 - [x] 2026-02-28: Implemented runnable `diffcatcher` CLI with discovery, fetch/pull, diff generation, extraction, tagging, and reporting.
 - [x] 2026-02-28: Added initial integration tests in `tests/basic.rs`.
