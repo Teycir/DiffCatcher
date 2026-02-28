@@ -51,6 +51,76 @@ fn scanner_respects_nested_flag() {
 }
 
 #[test]
+fn scanner_respects_skip_hidden() {
+    let tmp = tempdir().expect("temp dir");
+    let root = tmp.path();
+
+    let visible = root.join("visible");
+    let hidden_parent = root.join(".hidden");
+    let hidden = hidden_parent.join("hidden_repo");
+
+    std::fs::create_dir_all(&visible).expect("create visible");
+    std::fs::create_dir_all(&hidden).expect("create hidden");
+    init_git_repo(&visible);
+    init_git_repo(&hidden);
+
+    let discovered = discover_repositories(
+        root,
+        &ScanOptions {
+            nested: true,
+            follow_symlinks: false,
+            skip_hidden: true,
+            include_bare: false,
+        },
+    )
+    .expect("discover with skip hidden");
+
+    assert_eq!(discovered.len(), 1);
+    assert_eq!(discovered[0], visible);
+}
+
+#[cfg(unix)]
+#[test]
+fn scanner_can_follow_symlinks_when_enabled() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().expect("temp dir");
+    let root = tmp.path();
+
+    let real_repo = root.join("real");
+    let symlink_repo = root.join("real-link");
+    std::fs::create_dir_all(&real_repo).expect("create real");
+    init_git_repo(&real_repo);
+    symlink(&real_repo, &symlink_repo).expect("create symlink");
+
+    let without_follow = discover_repositories(
+        root,
+        &ScanOptions {
+            nested: true,
+            follow_symlinks: false,
+            skip_hidden: false,
+            include_bare: false,
+        },
+    )
+    .expect("discover without following symlink");
+    assert_eq!(without_follow.len(), 1);
+    assert!(without_follow.contains(&real_repo));
+
+    let with_follow = discover_repositories(
+        root,
+        &ScanOptions {
+            nested: true,
+            follow_symlinks: true,
+            skip_hidden: false,
+            include_bare: false,
+        },
+    )
+    .expect("discover with following symlink");
+    assert!(with_follow.contains(&real_repo));
+    assert!(with_follow.contains(&symlink_repo));
+}
+
+#[test]
 fn extraction_detects_function_element() {
     let patch = r#"diff --git a/src/lib.rs b/src/lib.rs
 index 123..456 100644
@@ -89,10 +159,12 @@ index 123..456 100644
     assert_eq!(files.len(), 1);
     let summary = summary.expect("summary");
     assert!(summary.total_elements >= 1);
-    assert!(summary
-        .elements
-        .iter()
-        .any(|el| el.kind == ElementKind::Function && el.name == "validate_token"));
+    assert!(
+        summary
+            .elements
+            .iter()
+            .any(|el| el.kind == ElementKind::Function && el.name == "validate_token")
+    );
 }
 
 fn init_git_repo(path: &std::path::Path) {
