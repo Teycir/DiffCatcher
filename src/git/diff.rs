@@ -91,39 +91,25 @@ pub fn generate_diff_artifacts(
     let patch_path = diff_dir.join(&patch_filename);
     let changes_path = diff_dir.join(&changes_filename);
 
-    let patch_output = run_git(
-        repo,
-        timeout_secs,
-        &["diff", &format!("{}..{}", pair.from, pair.to)],
-    )?;
-    fs::write(&patch_path, patch_output.stdout.as_bytes())?;
+    let range = format!("{}..{}", pair.from, pair.to);
 
-    let stat_output = run_git(
-        repo,
-        timeout_secs,
-        &["diff", "--stat", &format!("{}..{}", pair.from, pair.to)],
-    )?;
+    let patch_output = run_git(repo, timeout_secs, &["diff", &range])?;
+    fs::write(&patch_path, patch_output.stdout.as_bytes())?;
 
     let name_status_output = run_git(
         repo,
         timeout_secs,
-        &[
-            "diff",
-            "--name-status",
-            &format!("{}..{}", pair.from, pair.to),
-        ],
+        &["diff", "--name-status", &range],
     )?;
 
-    let numstat_output = run_git_expect_stdout(
-        repo,
-        timeout_secs,
-        &["diff", "--numstat", &format!("{}..{}", pair.from, pair.to)],
-    )
-    .unwrap_or_default();
+    let numstat_output =
+        run_git_expect_stdout(repo, timeout_secs, &["diff", "--numstat", &range])
+            .unwrap_or_default();
 
     let mut changes_content = String::new();
-    if !stat_output.stdout.is_empty() {
-        changes_content.push_str(&stat_output.stdout);
+    if !numstat_output.is_empty() {
+        changes_content.push_str("# numstat\n");
+        changes_content.push_str(&numstat_output);
         changes_content.push('\n');
     }
     if !name_status_output.stdout.is_empty() {
