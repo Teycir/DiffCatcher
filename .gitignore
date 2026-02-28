@@ -1,6 +1,12 @@
-.qodo
-.history
+.qodo/
+.history/
 
-# Added by cargo
+# Cargo
+/target/
+Cargo.lock
 
-/target
+# Report outputs
+*report*/
+
+# Scripts
+/scripts/
