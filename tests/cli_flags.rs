@@ -10,7 +10,7 @@ fn force_pull_requires_pull_flag() {
         .arg(tmp.path())
         .arg("--force-pull")
         .output()
-        .expect("run git-patrol");
+        .expect("run diffcatcher");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -25,7 +25,7 @@ fn pull_and_no_pull_are_mutually_exclusive() {
         .arg("--pull")
         .arg("--no-pull")
         .output()
-        .expect("run git-patrol");
+        .expect("run diffcatcher");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -69,7 +69,7 @@ fn no_snippets_and_no_security_tags_skip_snippet_dir_and_overview() {
         .arg("--summary-format")
         .arg("json,txt,md")
         .output()
-        .expect("run git-patrol");
+        .expect("run diffcatcher");
 
     assert!(
         output.status.success(),
@@ -126,7 +126,7 @@ fn dry_run_does_not_change_repository_head() {
         .arg(&report)
         .arg("--dry-run")
         .output()
-        .expect("run git-patrol");
+        .expect("run diffcatcher");
     assert!(output.status.success());
 
     let after = git_out(&repo, &["rev-parse", "HEAD"]);
@@ -160,7 +160,7 @@ fn partial_failures_exit_with_code_two() {
         .arg(&report)
         .arg("--no-pull")
         .output()
-        .expect("run git-patrol");
+        .expect("run diffcatcher");
 
     assert_eq!(output.status.code(), Some(2));
 }
@@ -186,7 +186,7 @@ fn verbose_mode_prints_discovered_repo_paths() {
         .arg("1")
         .arg("--verbose")
         .output()
-        .expect("run git-patrol");
+        .expect("run diffcatcher");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -194,7 +194,7 @@ fn verbose_mode_prints_discovered_repo_paths() {
 }
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_git-patrol")
+    env!("CARGO_BIN_EXE_diffcatcher")
 }
 
 fn init_repo(path: &Path) {

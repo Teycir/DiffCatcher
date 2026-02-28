@@ -1,10 +1,8 @@
-
-
 # Git Repo Scanner & Diff Reporter — Full Specification (v1.2)
 
 ## 1. Overview
 
-**Name:** `git-patrol`
+**Name:** `diffcatcher`
 
 A Rust CLI tool that recursively discovers all Git repositories under a given root directory, records their state, pulls updates, computes historical diffs, **extracts and summarizes all changed elements (functions, structs, types, files, modules) with their full code snippets**, and produces a structured output report directory. The primary downstream use case is **security review**: the extracted snippets and element context allow auditors or automated tools to assess whether changes introduced vulnerabilities, weakened access controls, altered cryptographic logic, modified authentication flows, or otherwise degraded the security posture of the codebase.
 
@@ -57,7 +55,7 @@ For each discovered repo, **before** fetching/pulling, record:
 If the working tree is **dirty** (uncommitted changes):
 - **Fetch-only mode (default)**: Dirty state is **recorded** but does **not** block the operation, since `git fetch` does not modify the working tree.
 - **With `--pull`**: Default behavior **skips** the pull for that repo, logs a warning, and marks it `DIRTY_SKIPPED`.
-- **With `--pull --force-pull`**: Stash before pull, pop after (`git stash push -m "git-patrol auto-stash"` / `git stash pop`). The `--force-pull` flag only applies when `--pull` is also set.
+- **With `--pull --force-pull`**: Stash before pull, pop after (`git stash push -m "diffcatcher auto-stash"` / `git stash pop`). The `--force-pull` flag only applies when `--pull` is also set.
 
 ### 3.3 — Update (git fetch / git pull)
 
@@ -994,7 +992,7 @@ FAILED (1):
 ## 4. CLI Interface
 
 ```
-git-patrol [OPTIONS] <ROOT_DIR>
+diffcatcher [OPTIONS] <ROOT_DIR>
 ```
 
 ### Positional Arguments
@@ -1039,25 +1037,25 @@ git-patrol [OPTIONS] <ROOT_DIR>
 
 ```bash
 # Basic: scan ~/projects, full security report
-git-patrol ~/projects
+diffcatcher ~/projects
 
 # Custom output, force-pull dirty repos, 8 parallel
-git-patrol ~/projects -o ./report -j 8 --force-pull
+diffcatcher ~/projects -o ./report -j 8 --force-pull
 
 # Dry run — just discover and report state, no modifications
-git-patrol ~/projects --dry-run -o ./snapshot
+diffcatcher ~/projects --dry-run -o ./snapshot
 
 # Only repos on main branch, deeper history, more context
-git-patrol ~/projects --branch-filter "main" --history-depth 5 --snippet-context 10
+diffcatcher ~/projects --branch-filter "main" --history-depth 5 --snippet-context 10
 
 # Quiet mode with JSON output for CI/CD piping
-git-patrol ~/projects -q --json > result.json
+diffcatcher ~/projects -q --json > result.json
 
 # Fast mode: skip snippets and security tagging
-git-patrol ~/projects --no-snippets --no-security-tags
+diffcatcher ~/projects --no-snippets --no-security-tags
 
 # Custom security patterns for domain-specific review
-git-patrol ~/projects --security-tags-file ./our-security-patterns.json
+diffcatcher ~/projects --security-tags-file ./our-security-patterns.json
 ```
 
 ---
@@ -1526,7 +1524,7 @@ Exit codes:
 - **Disk usage**: For repos with massive diffs, the `snippets/` directory can grow large. Consider adding `--no-snippet-files` to skip writing individual files (keep them inline in JSON only).
 - **Cross-diff caching**: When generating multiple diffs (N vs N-1, N-1 vs N-2), file contents from shared commits (e.g., N-1) are fetched once and reused across diffs via an in-memory LRU cache keyed by `(commit_hash, file_path)`.
 - **Intra-repo parallelism**: For repos with many changed files, per-file element extraction and security tagging are parallelized using `rayon`'s nested thread pool, bounded by `--parallel`.
-- **Incremental mode**: The tool writes a `.git-patrol-state.json` in the report directory recording `(repo_path, last_seen_hash)`. On subsequent runs with `--incremental`, repos whose HEAD matches the last-seen hash are skipped entirely. This dramatically speeds up repeated scans.
+- **Incremental mode**: The tool writes a `.diffcatcher-state.json` in the report directory recording `(repo_path, last_seen_hash)`. On subsequent runs with `--incremental`, repos whose HEAD matches the last-seen hash are skipped entirely. This dramatically speeds up repeated scans.
 
 ---
 
@@ -1555,7 +1553,7 @@ Exit codes:
 - **HTML report**: interactive diff viewer with syntax highlighting and security annotations
 - **Tree-sitter integration**: replace regex-based element extraction with AST-based parsing for higher accuracy
 - **Git submodule** tracking
-- **Config file** (`.git-patrol.toml`) per root directory
+- **Config file** (`.diffcatcher.toml`) per root directory
 - **Ignore list**: skip specific repo paths
 - **Commit range** diffs (beyond just N, N-1, N-2)
 - **Branch comparison**: diff `main` vs `develop`

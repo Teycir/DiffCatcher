@@ -1,6 +1,6 @@
-use git_patrol::security::patterns::builtin_patterns;
-use git_patrol::security::tagger::tag_file_changes;
-use git_patrol::types::{
+use diffcatcher::security::patterns::builtin_patterns;
+use diffcatcher::security::tagger::tag_file_changes;
+use diffcatcher::types::{
     CaptureScope, ChangeType, ChangedElement, CodeSnippet, ElementKind, FileChangeDetail,
     FileStatus, Language, SnippetContent,
 };

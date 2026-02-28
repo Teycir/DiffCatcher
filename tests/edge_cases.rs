@@ -1,13 +1,13 @@
 use std::path::Path;
 use std::process::Command;
 
-use git_patrol::cli::PullStrategy;
-use git_patrol::extraction::ExtractionOptions;
-use git_patrol::processor::{ProcessorConfig, process_repository};
-use git_patrol::scanner::{ScanOptions, discover_repositories};
-use git_patrol::security::custom::load_custom_patterns;
-use git_patrol::security::patterns::builtin_patterns;
-use git_patrol::types::RepoStatus;
+use diffcatcher::cli::PullStrategy;
+use diffcatcher::extraction::ExtractionOptions;
+use diffcatcher::processor::{ProcessorConfig, process_repository};
+use diffcatcher::scanner::{ScanOptions, discover_repositories};
+use diffcatcher::security::custom::load_custom_patterns;
+use diffcatcher::security::patterns::builtin_patterns;
+use diffcatcher::types::RepoStatus;
 use tempfile::tempdir;
 
 #[test]

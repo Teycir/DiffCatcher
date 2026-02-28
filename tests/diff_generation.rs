@@ -1,10 +1,10 @@
 use std::path::Path;
 use std::process::Command;
 
-use git_patrol::git::diff::{
+use diffcatcher::git::diff::{
     DiffPair, build_history_pairs, generate_diff_artifacts, safe_diff_pair,
 };
-use git_patrol::types::FileStatus;
+use diffcatcher::types::FileStatus;
 use tempfile::tempdir;
 
 #[test]

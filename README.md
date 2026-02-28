@@ -1,4 +1,4 @@
-# Git Patrol
+# DiffCatcher
 
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -42,7 +42,7 @@ A Rust CLI tool that recursively discovers Git repositories, captures state chan
 git clone https://github.com/Teycir/DiffCatcher.git
 cd DiffCatcher
 cargo build --release
-./target/release/git-patrol --help
+./target/release/diffcatcher --help
 ```
 
 ### Requirements
@@ -54,16 +54,16 @@ cargo build --release
 
 ```bash
 # Scan all repos in a directory (fetch-only, no modifications)
-git-patrol ~/projects
+diffcatcher ~/projects
 
 # Pull updates and generate security report
-git-patrol ~/projects --pull -o ./report
+diffcatcher ~/projects --pull -o ./report
 
 # Dry run to see what would be scanned
-git-patrol ~/projects --dry-run
+diffcatcher ~/projects --dry-run
 
 # Fast scan with 8 parallel workers
-git-patrol ~/projects -j 8 --quiet
+diffcatcher ~/projects -j 8 --quiet
 ```
 
 ## 📖 Usage
@@ -72,83 +72,83 @@ git-patrol ~/projects -j 8 --quiet
 
 ```bash
 # Scan with default settings (fetch-only)
-git-patrol <ROOT_DIR>
+diffcatcher <ROOT_DIR>
 
 # Custom output directory
-git-patrol ~/projects -o ./my-report
+diffcatcher ~/projects -o ./my-report
 
 # Include nested repos and follow symlinks
-git-patrol ~/projects --nested --follow-symlinks
+diffcatcher ~/projects --nested --follow-symlinks
 
 # Skip hidden directories
-git-patrol ~/projects --skip-hidden
+diffcatcher ~/projects --skip-hidden
 ```
 
 ### Pull Modes
 
 ```bash
 # Fetch only (default - no working tree changes)
-git-patrol ~/projects
+diffcatcher ~/projects
 
 # Actually pull changes
-git-patrol ~/projects --pull
+diffcatcher ~/projects --pull
 
 # Force pull with stash/pop for dirty repos
-git-patrol ~/projects --pull --force-pull
+diffcatcher ~/projects --pull --force-pull
 
 # Use rebase strategy
-git-patrol ~/projects --pull --pull-strategy rebase
+diffcatcher ~/projects --pull --pull-strategy rebase
 
 # Skip fetch/pull entirely (historical diffs only)
-git-patrol ~/projects --no-pull
+diffcatcher ~/projects --no-pull
 ```
 
 ### Extraction Options
 
 ```bash
 # Skip element extraction (raw diffs only)
-git-patrol ~/projects --no-summary-extraction
+diffcatcher ~/projects --no-summary-extraction
 
 # Extract elements but skip code snippets
-git-patrol ~/projects --no-snippets
+diffcatcher ~/projects --no-snippets
 
 # Adjust snippet context and limits
-git-patrol ~/projects --snippet-context 10 --max-snippet-lines 300
+diffcatcher ~/projects --snippet-context 10 --max-snippet-lines 300
 
 # Limit elements per diff
-git-patrol ~/projects --max-elements 1000
+diffcatcher ~/projects --max-elements 1000
 ```
 
 ### Security Tagging
 
 ```bash
 # Skip security tagging
-git-patrol ~/projects --no-security-tags
+diffcatcher ~/projects --no-security-tags
 
 # Include test files in security analysis
-git-patrol ~/projects --include-test-security
+diffcatcher ~/projects --include-test-security
 
 # Use custom security patterns
-git-patrol ~/projects --security-tags-file ./custom-patterns.json
+diffcatcher ~/projects --security-tags-file ./custom-patterns.json
 ```
 
 ### Advanced Features
 
 ```bash
 # Incremental mode (skip unchanged repos)
-git-patrol ~/projects --incremental -o ./report
+diffcatcher ~/projects --incremental -o ./report
 
 # Filter by branch pattern
-git-patrol ~/projects --branch-filter "main"
+diffcatcher ~/projects --branch-filter "main"
 
 # Adjust history depth
-git-patrol ~/projects --history-depth 5
+diffcatcher ~/projects --history-depth 5
 
 # JSON output for CI/CD
-git-patrol ~/projects --quiet --json > result.json
+diffcatcher ~/projects --quiet --json > result.json
 
 # Verbose output with discovered paths
-git-patrol ~/projects --verbose
+diffcatcher ~/projects --verbose
 ```
 
 ## 📁 Report Structure
@@ -189,7 +189,7 @@ git-patrol ~/projects --verbose
 | `--max-snippet-lines` | `200` | Max lines per snippet |
 | `--max-elements` | `500` | Max elements per diff |
 
-See `git-patrol --help` for all options.
+See `diffcatcher --help` for all options.
 
 ### Custom Security Patterns
 

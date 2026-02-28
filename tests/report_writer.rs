@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use chrono::Utc;
-use git_patrol::cli::SummaryFormat;
-use git_patrol::report::writer::{write_repo_report, write_top_level_reports};
-use git_patrol::security::overview::build_global_security_overview;
-use git_patrol::types::{
+use diffcatcher::cli::SummaryFormat;
+use diffcatcher::report::writer::{write_repo_report, write_top_level_reports};
+use diffcatcher::security::overview::build_global_security_overview;
+use diffcatcher::types::{
     CaptureScope, ChangeType, ChangedElement, CodeSnippet, CommitInfo, DiffResult, ElementKind,
     ElementSummary, FileChangeDetail, FileStatus, GlobalSummary, KindCounts, Language, RepoResult,
     RepoStatus, SecurityReview, SnippetContent, TagSeverity,

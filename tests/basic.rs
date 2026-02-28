@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 use std::process::Command;
 
-use git_patrol::extraction::{ExtractionOptions, extract_from_patch};
-use git_patrol::git::diff::NameStatusEntry;
-use git_patrol::scanner::{ScanOptions, discover_repositories};
-use git_patrol::types::{ElementKind, FileStatus};
+use diffcatcher::extraction::{ExtractionOptions, extract_from_patch};
+use diffcatcher::git::diff::NameStatusEntry;
+use diffcatcher::scanner::{ScanOptions, discover_repositories};
+use diffcatcher::types::{ElementKind, FileStatus};
 use tempfile::tempdir;
 
 #[test]

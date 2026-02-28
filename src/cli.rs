@@ -28,7 +28,7 @@ pub enum SummaryFormat {
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "git-patrol",
+    name = "diffcatcher",
     version,
     about = "Scan git repositories and produce security-focused diff reports"
 )]

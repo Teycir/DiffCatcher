@@ -1,4 +1,4 @@
-use git_patrol::extraction::boundary::try_capture_full_element;
+use diffcatcher::extraction::boundary::try_capture_full_element;
 
 #[test]
 fn captures_kr_style_function_block() {

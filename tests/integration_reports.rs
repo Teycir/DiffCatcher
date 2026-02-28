@@ -42,7 +42,7 @@ fn integration_run_writes_expected_report_structure() {
         .arg("--summary-format")
         .arg("json,txt,md")
         .output()
-        .expect("run git-patrol");
+        .expect("run diffcatcher");
 
     assert!(
         output.status.success(),
@@ -104,7 +104,7 @@ fn integration_run_writes_expected_report_structure() {
 }
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_git-patrol")
+    env!("CARGO_BIN_EXE_diffcatcher")
 }
 
 fn init_repo(path: &Path) {

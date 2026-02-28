@@ -9,15 +9,15 @@ use rayon::prelude::*;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use git_patrol::cli::Cli;
-use git_patrol::error::{PatrolError, Result};
-use git_patrol::extraction::ExtractionOptions;
-use git_patrol::git::commands::run_git_expect_stdout;
-use git_patrol::processor::{ProcessorConfig, process_repository};
-use git_patrol::report::writer::{prepare_report_dir, write_repo_report, write_top_level_reports};
-use git_patrol::scanner::{ScanOptions, discover_repositories};
-use git_patrol::security::{load_tag_definitions, overview::build_global_security_overview};
-use git_patrol::types::{GlobalSummary, RepoResult, RepoStatus};
+use diffcatcher::cli::Cli;
+use diffcatcher::error::{PatrolError, Result};
+use diffcatcher::extraction::ExtractionOptions;
+use diffcatcher::git::commands::run_git_expect_stdout;
+use diffcatcher::processor::{ProcessorConfig, process_repository};
+use diffcatcher::report::writer::{prepare_report_dir, write_repo_report, write_top_level_reports};
+use diffcatcher::scanner::{ScanOptions, discover_repositories};
+use diffcatcher::security::{load_tag_definitions, overview::build_global_security_overview};
+use diffcatcher::types::{GlobalSummary, RepoResult, RepoStatus};
 
 fn main() {
     let exit_code = match run() {
@@ -135,7 +135,7 @@ fn run() -> Result<i32> {
         println!("{}", serde_json::to_string_pretty(&summary)?);
     } else if !cli.quiet {
         println!(
-            "Git Patrol complete: {} repos scanned, {} updated, {} security-tagged elements. Report: {}",
+            "DiffCatcher complete: {} repos scanned, {} updated, {} security-tagged elements. Report: {}",
             summary.total_repos_found,
             summary.updated,
             summary.total_security_tagged_elements,
@@ -174,7 +174,7 @@ fn persist_incremental_state(report_dir: &Path, repos: &[RepoResult]) -> Result<
     }
 
     let content = serde_json::to_string_pretty(&state)?;
-    fs::write(report_dir.join(".git-patrol-state.json"), content)?;
+    fs::write(report_dir.join(".diffcatcher-state.json"), content)?;
     Ok(())
 }
 
@@ -183,7 +183,7 @@ fn filter_incremental_repos(
     repos: Vec<PathBuf>,
     timeout_secs: u64,
 ) -> Result<Vec<PathBuf>> {
-    let state_path = report_dir.join(".git-patrol-state.json");
+    let state_path = report_dir.join(".diffcatcher-state.json");
     if !state_path.exists() {
         return Ok(repos);
     }

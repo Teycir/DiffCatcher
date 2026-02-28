@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use git_patrol::extraction::{ExtractionOptions, extract_from_patch};
-use git_patrol::git::diff::NameStatusEntry;
-use git_patrol::types::{CaptureScope, ChangeType, ElementKind, FileStatus, Language};
+use diffcatcher::extraction::{ExtractionOptions, extract_from_patch};
+use diffcatcher::git::diff::NameStatusEntry;
+use diffcatcher::types::{CaptureScope, ChangeType, ElementKind, FileStatus, Language};
 
 #[test]
 fn rust_modified_function_has_before_after_and_full_element_scope() {
@@ -130,8 +130,8 @@ fn extract(
     status: FileStatus,
     old_path: Option<&str>,
 ) -> (
-    Vec<git_patrol::types::FileChangeDetail>,
-    Option<git_patrol::types::ElementSummary>,
+    Vec<diffcatcher::types::FileChangeDetail>,
+    Option<diffcatcher::types::ElementSummary>,
 ) {
     let mut ns = BTreeMap::new();
     ns.insert(

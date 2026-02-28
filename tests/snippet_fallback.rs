@@ -1,6 +1,6 @@
-use git_patrol::extraction::elements::DetectedElement;
-use git_patrol::extraction::snippets::{SnippetOptions, build_snippet};
-use git_patrol::types::{ChangeType, ElementKind, RawHunk};
+use diffcatcher::extraction::elements::DetectedElement;
+use diffcatcher::extraction::snippets::{SnippetOptions, build_snippet};
+use diffcatcher::types::{ChangeType, ElementKind, RawHunk};
 
 fn options() -> SnippetOptions {
     SnippetOptions {

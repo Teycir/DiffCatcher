@@ -1,6 +1,6 @@
-use git_patrol::security::patterns::builtin_patterns;
-use git_patrol::security::tagger::tag_file_changes;
-use git_patrol::types::{
+use diffcatcher::security::patterns::builtin_patterns;
+use diffcatcher::security::tagger::tag_file_changes;
+use diffcatcher::types::{
     CaptureScope, ChangeType, ChangedElement, CodeSnippet, FileChangeDetail, FileStatus, Language,
 };
 
@@ -14,7 +14,7 @@ fn tagger_applies_authentication_and_secrets_tags() {
         insertions: 4,
         deletions: 1,
         elements: vec![ChangedElement {
-            kind: git_patrol::types::ElementKind::Function,
+            kind: diffcatcher::types::ElementKind::Function,
             name: "login".to_string(),
             change_type: ChangeType::Modified,
             file_path: "src/auth.rs".to_string(),
@@ -56,7 +56,7 @@ fn tagger_suppresses_network_tag_for_test_url_false_positive() {
         insertions: 2,
         deletions: 0,
         elements: vec![ChangedElement {
-            kind: git_patrol::types::ElementKind::Constant,
+            kind: diffcatcher::types::ElementKind::Constant,
             name: "TEST_URL".to_string(),
             change_type: ChangeType::Added,
             file_path: "src/mock.rs".to_string(),

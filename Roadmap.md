@@ -1,4 +1,4 @@
-# Git Patrol — Implementation Roadmap (v1.2)
+# DiffCatcher — Implementation Roadmap (v1.2)
 
 > This roadmap references the full specification in [Plan.md](./Plan.md).
 > Each phase builds on the previous one. A phase is complete when all its items are checked off.
@@ -16,7 +16,7 @@
 ### Progress Log
 
 - [x] 2026-02-28: Created granular commits for core, extraction, security, reporting, and tests.
-- [x] 2026-02-28: Implemented runnable `git-patrol` CLI with discovery, fetch/pull, diff generation, extraction, tagging, and reporting.
+- [x] 2026-02-28: Implemented runnable `diffcatcher` CLI with discovery, fetch/pull, diff generation, extraction, tagging, and reporting.
 - [x] 2026-02-28: Added initial integration tests in `tests/basic.rs`.
 - [x] 2026-02-28: Validated execution on `/media/elements/Repos/apt0d/libnvidia-container` (sample validation run).
 - [x] 2026-02-28: Added scanner coverage for hidden directories and symlink traversal.
@@ -39,7 +39,7 @@
 
 ## Phase 0 — Project Bootstrap
 
-- [x] Initialize Rust project: `cargo init --name git-patrol`
+- [x] Initialize Rust project: `cargo init --name diffcatcher`
 - [x] Set up `Cargo.toml` with dependencies: `git2`, `clap` (v4 derive), `walkdir`, `rayon`, `serde`, `serde_json`, `chrono`, `thiserror`, `indicatif`, `tracing`, `tracing-subscriber`, `regex`, `once_cell`, `glob`
 - [x] Create module structure per Plan.md §5.1
 - [x] Set up `error.rs` with `thiserror` error types (Plan.md §8)
@@ -179,7 +179,7 @@
 - [x] Implement `--verbose` logging with `tracing`
 - [x] Implement `--json` stdout output for CI/CD piping
 - [x] Implement `--branch-filter` glob matching
-- [x] Implement incremental mode (`--incremental` + `.git-patrol-state.json`)
+- [x] Implement incremental mode (`--incremental` + `.diffcatcher-state.json`)
 - [x] Implement exit codes: 0 (success), 1 (fatal), 2 (partial)
 - [x] Verify: end-to-end run on multiple repos with all flags
 
