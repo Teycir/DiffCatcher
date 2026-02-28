@@ -216,6 +216,24 @@ pub struct HighAttentionItem {
     pub snippet_ref: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RiskLevel {
+    Minimal,
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RiskScore {
+    pub total: f64,
+    pub level: Option<RiskLevel>,
+    pub severity_score: f64,
+    pub concentration_factor: f64,
+    pub composition_bonus: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SecurityReview {
     pub total_security_tagged_elements: u32,
@@ -223,6 +241,7 @@ pub struct SecurityReview {
     pub by_severity: BTreeMap<TagSeverity, u32>,
     pub high_attention_items: Vec<HighAttentionItem>,
     pub flagged_elements: Vec<ChangedElement>,
+    pub risk_score: Option<RiskScore>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

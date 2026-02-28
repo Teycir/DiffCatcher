@@ -6,8 +6,8 @@ use regex::Regex;
 
 use crate::error::Result;
 use crate::types::{
-    ChangeType, FileChangeDetail, HighAttentionItem, PatternKind, SecurityReview,
-    SecurityTagDefinition, TagSeverity,
+    ChangeType, FileChangeDetail, HighAttentionItem, PatternKind, RiskLevel, RiskScore,
+    SecurityReview, SecurityTagDefinition, TagSeverity,
 };
 
 #[derive(Debug)]
@@ -47,6 +47,10 @@ pub fn tag_file_changes(
     for partial in partials {
         merge_review(&mut review, partial);
     }
+
+    apply_composition_escalation(&mut review);
+    review.risk_score = Some(compute_risk_score(&review));
+
     Ok(review)
 }
 
@@ -216,4 +220,158 @@ fn merge_review(target: &mut SecurityReview, source: SecurityReview) {
         .high_attention_items
         .extend(source.high_attention_items);
     target.flagged_elements.extend(source.flagged_elements);
+}
+
+// ── Risk scoring (inspired by SCPF risk_scorer.rs) ──────────────────────────
+
+const WEIGHT_HIGH: f64 = 15.0;
+const WEIGHT_MEDIUM: f64 = 8.0;
+const WEIGHT_LOW: f64 = 3.0;
+const WEIGHT_INFO: f64 = 1.0;
+
+fn compute_risk_score(review: &SecurityReview) -> RiskScore {
+    let severity_score = review
+        .by_severity
+        .iter()
+        .map(|(sev, count)| {
+            let w = match sev {
+                TagSeverity::High => WEIGHT_HIGH,
+                TagSeverity::Medium => WEIGHT_MEDIUM,
+                TagSeverity::Low => WEIGHT_LOW,
+                TagSeverity::Info => WEIGHT_INFO,
+            };
+            w * (*count as f64)
+        })
+        .sum::<f64>();
+
+    let concentration_factor = {
+        let max_tag_count = review.by_tag.values().max().copied().unwrap_or(0);
+        if max_tag_count > 10 {
+            1.3
+        } else if max_tag_count > 5 {
+            1.2
+        } else if max_tag_count > 3 {
+            1.1
+        } else {
+            1.0
+        }
+    };
+
+    let composition_bonus = compute_composition_bonus(review);
+
+    let total = ((severity_score * concentration_factor) + composition_bonus).clamp(0.0, 100.0);
+    let level = score_to_level(total);
+
+    RiskScore {
+        total,
+        level: Some(level),
+        severity_score,
+        concentration_factor,
+        composition_bonus,
+    }
+}
+
+fn score_to_level(score: f64) -> RiskLevel {
+    match score as u32 {
+        80..=u32::MAX => RiskLevel::Critical,
+        60..=79 => RiskLevel::High,
+        40..=59 => RiskLevel::Medium,
+        20..=39 => RiskLevel::Low,
+        _ => RiskLevel::Minimal,
+    }
+}
+
+fn compute_composition_bonus(review: &SecurityReview) -> f64 {
+    let tags = &review.by_tag;
+    let mut bonus = 0.0;
+
+    // crypto + no authentication guard = higher risk
+    if tags.contains_key("crypto") && !tags.contains_key("authentication") {
+        bonus += 5.0;
+    }
+
+    // secrets + hardcoded-secret = very high risk
+    if tags.contains_key("secrets") && tags.contains_key("hardcoded-secret") {
+        bonus += 10.0;
+    }
+
+    // command-injection + unsafe-code = compounding risk
+    if tags.contains_key("command-injection") && tags.contains_key("unsafe-code") {
+        bonus += 8.0;
+    }
+
+    // network + no input-validation = unvalidated external input
+    if tags.contains_key("network") && !tags.contains_key("input-validation") {
+        bonus += 4.0;
+    }
+
+    // security-removal present = always escalate
+    if tags.contains_key("security-removal") {
+        bonus += 10.0;
+    }
+
+    bonus
+}
+
+// ── Composition-based high-attention escalation ─────────────────────────────
+
+const DANGEROUS_COMBOS: &[(&[&str], &str)] = &[
+    (
+        &["crypto", "weak-hashing"],
+        "Crypto code using weak hash algorithm",
+    ),
+    (
+        &["secrets", "hardcoded-secret"],
+        "Hardcoded credentials in secrets-handling code",
+    ),
+    (
+        &["authentication", "operator-misuse"],
+        "Auth code with potential operator misuse",
+    ),
+    (
+        &["network", "command-injection"],
+        "Network-facing code with command injection risk",
+    ),
+    (
+        &["deserialization", "network"],
+        "Untrusted deserialization from network input",
+    ),
+];
+
+fn apply_composition_escalation(review: &mut SecurityReview) {
+    for element in &review.flagged_elements {
+        for (combo, reason) in DANGEROUS_COMBOS {
+            let all_present = combo.iter().all(|tag| element.security_tags.contains(&tag.to_string()));
+            if !all_present {
+                continue;
+            }
+
+            let already_flagged = review
+                .high_attention_items
+                .iter()
+                .any(|hi| hi.element_name == element.name && hi.file_path == element.file_path);
+            if already_flagged {
+                continue;
+            }
+
+            let preview = element
+                .snippet
+                .after
+                .as_ref()
+                .or(element.snippet.before.as_ref())
+                .map(|s| s.code.lines().take(5).collect::<Vec<_>>().join("\n"))
+                .unwrap_or_default();
+
+            review.high_attention_items.push(HighAttentionItem {
+                reason: format!("Composition risk: {}", reason),
+                element_name: element.name.clone(),
+                element_kind: element.kind,
+                change_type: element.change_type,
+                file_path: element.file_path.clone(),
+                tags: element.security_tags.clone(),
+                code_preview: preview,
+                snippet_ref: format!("{}:{}", element.file_path, element.name),
+            });
+        }
+    }
 }
