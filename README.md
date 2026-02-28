@@ -181,7 +181,7 @@ git-patrol ~/projects --verbose
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-o, --output` | `./git-patrol-report-<timestamp>` | Report output directory |
+| `-o, --output` | `./reports/<timestamp>` | Report output directory |
 | `-j, --parallel` | `4` | Concurrent repo processing |
 | `-t, --timeout` | `120` | Git operation timeout (seconds) |
 | `-d, --history-depth` | `2` | Historical commits to diff |

@@ -211,10 +211,7 @@ fn write_diff_summaries(
 }
 
 fn default_report_dir() -> PathBuf {
-    PathBuf::from(format!(
-        "git-patrol-report-{}",
-        Utc::now().format("%Y%m%d-%H%M%S")
-    ))
+    PathBuf::from("reports").join(Utc::now().format("%Y%m%d-%H%M%S").to_string())
 }
 
 fn sanitize_segment(raw: &str) -> String {

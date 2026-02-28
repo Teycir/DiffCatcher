@@ -40,7 +40,7 @@ pub struct Cli {
         short = 'o',
         long = "output",
         value_name = "DIR",
-        help = "Report output directory"
+        help = "Report output directory (default: ./reports/<timestamp>)"
     )]
     pub output: Option<PathBuf>,
 

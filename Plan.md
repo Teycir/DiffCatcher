@@ -1007,7 +1007,7 @@ git-patrol [OPTIONS] <ROOT_DIR>
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--output <DIR>` | `-o` | `./git-patrol-report-<timestamp>` | Report output directory |
+| `--output <DIR>` | `-o` | `./reports/<timestamp>` | Report output directory |
 | `--pull-strategy <STRATEGY>` | `-s` | `ff-only` | Pull strategy: `ff-only`, `rebase`, `merge` |
 | `--timeout <SECONDS>` | `-t` | `120` | Timeout per repo for git operations |
 | `--nested` | | `false` | Recurse into repos to find nested repos |

@@ -6,7 +6,9 @@
 Cargo.lock
 
 # Report outputs
-*report*/
+/reports/
+/git-patrol-report-*/
+/run-media-elements-*/
 
 # Scripts
 /scripts/
