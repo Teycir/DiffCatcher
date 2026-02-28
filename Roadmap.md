@@ -23,6 +23,8 @@
 - [x] 2026-02-28: Added security tagger unit tests for positive and false-positive scenarios.
 - [x] 2026-02-28: Added report writer integration test for expected output structure/content.
 - [x] 2026-02-28: Implemented intra-repo parallelism for extraction/tagging and added CLI progress bar output.
+- [x] 2026-02-28: Added edge-case tests for detached HEAD, bare repos, single-commit history handling, and invalid custom security files.
+- [x] 2026-02-28: Added processor safeguards for oversized diffs and extraction panic fallback to file-level reporting.
 
 ---
 
@@ -61,7 +63,7 @@
 - [x] Implement up-to-date detection (pre vs post hash comparison)
 - [x] Implement `--timeout` for git operations
 - [x] Implement `--dry-run` (discover + state capture only)
-- [ ] Handle errors: detached HEAD, bare repo, permission denied, network timeout
+- [x] Handle errors: detached HEAD, bare repo, permission denied, network timeout
 - [ ] Integration tests: temp repos with known commits, verify state capture accuracy
 - [ ] Verify: fetches repos, captures correct pre/post state, detects UPDATED vs UP_TO_DATE
 
@@ -178,18 +180,18 @@
 
 - [ ] Verify all error scenarios from Plan.md §8 are handled:
   - [ ] `git` not found / `git2` initialization failure
-  - [ ] Root dir doesn't exist
-  - [ ] Single repo failure → continue processing
-  - [ ] Permission denied on subdirectory
-  - [ ] Repo with <3 commits
-  - [ ] Detached HEAD
-  - [ ] Bare repository
-  - [ ] Diff >50MB → truncate extraction
-  - [ ] Element extraction regex panic → fallback
-  - [ ] Binary files in diff
+  - [x] Root dir doesn't exist
+  - [x] Single repo failure → continue processing
+  - [x] Permission denied on subdirectory
+  - [x] Repo with <3 commits
+  - [x] Detached HEAD
+  - [x] Bare repository
+  - [x] Diff >50MB → truncate extraction
+  - [x] Element extraction regex panic → fallback
+  - [x] Binary files in diff
   - [ ] `git show` failure → DiffOnly fallback
-  - [ ] Snippet exceeds max lines → Truncated scope
-  - [ ] Invalid custom security tags file
+  - [x] Snippet exceeds max lines → Truncated scope
+  - [x] Invalid custom security tags file
 - [ ] Edge case tests: 0 commits, 1 commit, merge commits, submodules, binary files, empty diffs, non-UTF8 files, renamed files
 
 ---
