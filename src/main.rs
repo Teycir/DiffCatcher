@@ -117,9 +117,9 @@ fn run() -> Result<i32> {
 
     results.sort_by(|a, b| a.report_folder_name.cmp(&b.report_folder_name));
 
-    for repo in &mut results {
-        write_repo_report(&report_dir, repo, &cli.summary_formats)?;
-    }
+    results.par_iter_mut().try_for_each(|repo| {
+        write_repo_report(&report_dir, repo, &cli.summary_formats)
+    })?;
 
     let summary = GlobalSummary::from_results(cli.root_dir.clone(), report_dir.clone(), &results);
     let security_overview = if cli.no_security_tags {
@@ -191,21 +191,18 @@ fn filter_incremental_repos(
     let raw = fs::read_to_string(state_path)?;
     let previous: BTreeMap<String, String> = serde_json::from_str(&raw)?;
 
-    let mut filtered = Vec::new();
-    for repo in repos {
-        let key = repo.display().to_string();
-        let current_head =
-            run_git_expect_stdout(&repo, timeout_secs, &["rev-parse", "HEAD"]).unwrap_or_default();
-
-        if previous
-            .get(&key)
-            .is_some_and(|last_hash| last_hash == &current_head)
-        {
-            continue;
-        }
-
-        filtered.push(repo);
-    }
+    let filtered: Vec<PathBuf> = repos
+        .into_par_iter()
+        .filter(|repo| {
+            let key = repo.display().to_string();
+            let current_head =
+                run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "HEAD"])
+                    .unwrap_or_default();
+            previous
+                .get(&key)
+                .is_none_or(|last_hash| last_hash != &current_head)
+        })
+        .collect();
 
     Ok(filtered)
 }

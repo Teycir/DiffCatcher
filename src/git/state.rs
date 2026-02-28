@@ -14,19 +14,23 @@ pub struct RepoState {
 }
 
 pub fn capture_repo_state(repo: &Path, timeout_secs: u64, detect_dirty: bool) -> Result<RepoState> {
-    let hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "HEAD"])?;
-    let short_hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "--short", "HEAD"])?;
-    let full_message = run_git_expect_stdout(repo, timeout_secs, &["log", "-1", "--pretty=%B"])?;
-    let message = full_message
-        .lines()
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let author = run_git_expect_stdout(repo, timeout_secs, &["log", "-1", "--pretty=%an <%ae>"])?;
-    let ts = run_git_expect_stdout(repo, timeout_secs, &["log", "-1", "--pretty=%ct"])?;
+    let log_output = run_git_expect_stdout(
+        repo,
+        timeout_secs,
+        &["log", "-1", "--format=%H%n%h%n%an <%ae>%n%ct%n%B"],
+    )?;
+
+    let mut lines = log_output.lines();
+    let hash = lines.next().unwrap_or_default().to_string();
+    let short_hash = lines.next().unwrap_or_default().to_string();
+    let author = lines.next().unwrap_or_default().to_string();
+    let ts = lines.next().unwrap_or_default();
     let ts_i = ts.parse::<i64>().unwrap_or(0);
+    let full_message: String = lines.collect::<Vec<_>>().join("\n").trim().to_string();
+    let message = full_message.lines().next().unwrap_or_default().trim().to_string();
+
     let branch = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "--abbrev-ref", "HEAD"])?;
+
     let dirty = if detect_dirty {
         !run_git_expect_stdout(repo, timeout_secs, &["status", "--porcelain"])?
             .trim()
@@ -56,32 +60,20 @@ pub fn capture_repo_state(repo: &Path, timeout_secs: u64, detect_dirty: bool) ->
 }
 
 pub fn capture_commit(repo: &Path, timeout_secs: u64, spec: &str) -> Result<CommitInfo> {
-    let hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", spec])?;
-    let short_hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "--short", spec])?;
+    let log_output = run_git_expect_stdout(
+        repo,
+        timeout_secs,
+        &["log", "-1", "--format=%H%n%h%n%an <%ae>%n%ct%n%B", spec],
+    )?;
 
-    let pretty_ref = spec.to_string();
-    let full_message = run_git_expect_stdout(
-        repo,
-        timeout_secs,
-        &["log", "-1", "--pretty=%B", &pretty_ref],
-    )?;
-    let message = full_message
-        .lines()
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let author = run_git_expect_stdout(
-        repo,
-        timeout_secs,
-        &["log", "-1", "--pretty=%an <%ae>", &pretty_ref],
-    )?;
-    let ts = run_git_expect_stdout(
-        repo,
-        timeout_secs,
-        &["log", "-1", "--pretty=%ct", &pretty_ref],
-    )?;
+    let mut lines = log_output.lines();
+    let hash = lines.next().unwrap_or_default().to_string();
+    let short_hash = lines.next().unwrap_or_default().to_string();
+    let author = lines.next().unwrap_or_default().to_string();
+    let ts = lines.next().unwrap_or_default();
     let ts_i = ts.parse::<i64>().unwrap_or(0);
+    let full_message: String = lines.collect::<Vec<_>>().join("\n").trim().to_string();
+    let message = full_message.lines().next().unwrap_or_default().trim().to_string();
 
     Ok(CommitInfo {
         hash,

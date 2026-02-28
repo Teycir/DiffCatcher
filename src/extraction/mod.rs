@@ -8,7 +8,8 @@ use snippets::{SnippetOptions, build_snippet};
 
 use crate::git::diff::NameStatusEntry;
 use crate::types::{
-    ChangeType, ChangedElement, ElementSummary, FileChangeDetail, FileStatus, KindCounts,
+    ChangeType, ChangedElement, ElementKind, ElementSummary, FileChangeDetail, FileStatus,
+    KindCounts,
 };
 
 pub mod boundary;
@@ -57,7 +58,7 @@ pub fn extract_from_patch(
             let elements = if options.no_summary_extraction || is_binary {
                 Vec::new()
             } else {
-                let detected = detect_elements(&file_path, &hunks, options.max_elements);
+                let detected = detect_elements(&file_path, &hunks, options.max_elements, &language);
                 let snippet_options = SnippetOptions {
                     context_lines: options.snippet_context,
                     max_snippet_lines: options.max_snippet_lines,
@@ -141,15 +142,46 @@ fn build_element_summary(elements: Vec<ChangedElement>) -> ElementSummary {
         }
     }
 
-    let mut top_elements = elements
+    // Rank top elements by impact: lines changed, security tags, and element importance
+    let mut scored: Vec<(usize, u32)> = elements
+        .iter()
+        .enumerate()
+        .map(|(idx, e)| {
+            let lines_score = e.lines_added + e.lines_removed;
+            let security_bonus = if e.security_tags.is_empty() { 0 } else { 50 };
+            let kind_bonus = match e.kind {
+                ElementKind::Function | ElementKind::Method => 10,
+                ElementKind::Struct
+                | ElementKind::Class
+                | ElementKind::Trait
+                | ElementKind::Interface => 8,
+                ElementKind::Enum | ElementKind::Impl => 6,
+                ElementKind::Constant | ElementKind::Static | ElementKind::TypeAlias => 4,
+                ElementKind::Macro => 5,
+                ElementKind::Test => 3,
+                ElementKind::Module => 2,
+                ElementKind::Import | ElementKind::Config => 1,
+                ElementKind::Other => 0,
+            };
+            (idx, lines_score + security_bonus + kind_bonus)
+        })
+        .collect();
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+
+    let top_elements = scored
         .iter()
         .take(10)
-        .map(|e| format!("{:?} {} ({})", e.change_type, e.name, e.file_path))
+        .map(|(idx, _)| {
+            let e = &elements[*idx];
+            format!("{:?} {} ({})", e.change_type, e.name, e.file_path)
+        })
         .collect::<Vec<_>>();
 
-    if top_elements.is_empty() {
-        top_elements.push("No elements extracted".to_string());
-    }
+    let top_elements = if top_elements.is_empty() {
+        vec!["No elements extracted".to_string()]
+    } else {
+        top_elements
+    };
 
     ElementSummary {
         total_elements: elements.len() as u32,
