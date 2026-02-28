@@ -6,8 +6,8 @@ use regex::Regex;
 
 use crate::error::Result;
 use crate::types::{
-    ChangeType, FileChangeDetail, HighAttentionItem, PatternKind, RiskLevel, RiskScore,
-    SecurityReview, SecurityTagDefinition, TagSeverity,
+    ChangeType, ConfidenceLevel, FileChangeDetail, HighAttentionItem, PatternKind, RiskLevel,
+    RiskScore, SecurityReview, SecurityTagDefinition, TagSeverity,
 };
 
 #[derive(Debug)]
@@ -49,6 +49,7 @@ pub fn tag_file_changes(
     }
 
     apply_composition_escalation(&mut review);
+    score_confidence(&mut review);
     review.risk_score = Some(compute_risk_score(&review));
 
     Ok(review)
@@ -184,6 +185,8 @@ fn process_file_tags(
                     tags: element.security_tags.clone(),
                     code_preview: preview.clone(),
                     snippet_ref: format!("{}:{}", element.file_path, element.name),
+                    confidence: None,
+                    confidence_level: None,
                 });
             } else if element.change_type == ChangeType::Added
                 && (element.security_tags.iter().any(|t| t == "crypto")
@@ -198,6 +201,8 @@ fn process_file_tags(
                     tags: element.security_tags.clone(),
                     code_preview: preview.clone(),
                     snippet_ref: format!("{}:{}", element.file_path, element.name),
+                    confidence: None,
+                    confidence_level: None,
                 });
             }
         }
@@ -371,7 +376,65 @@ fn apply_composition_escalation(review: &mut SecurityReview) {
                 tags: element.security_tags.clone(),
                 code_preview: preview,
                 snippet_ref: format!("{}:{}", element.file_path, element.name),
+                confidence: None,
+                confidence_level: None,
             });
         }
+    }
+}
+
+// ── Confidence scoring (inspired by ZkPatternFuzz triage.rs) ────────────────
+
+fn score_confidence(review: &mut SecurityReview) {
+    for item in &mut review.high_attention_items {
+        let mut score: f64 = 0.0;
+
+        // Base score from reason type (0.3–0.5)
+        score += match item.reason.as_str() {
+            "Security control REMOVED" => 0.50,
+            _ if item.reason.starts_with("Composition risk:") => 0.45,
+            "New crypto/auth code added" => 0.35,
+            _ => 0.30,
+        };
+
+        // Tag diversity bonus: more distinct high-severity tags → higher confidence
+        let high_sev_tags = item.tags.iter().filter(|t| {
+            matches!(
+                t.as_str(),
+                "crypto"
+                    | "authentication"
+                    | "authorization"
+                    | "secrets"
+                    | "hardcoded-secret"
+                    | "unsafe-code"
+                    | "command-injection"
+                    | "sql-injection"
+                    | "weak-hashing"
+            )
+        });
+        let diversity = high_sev_tags.count();
+        score += match diversity {
+            0 => 0.0,
+            1 => 0.10,
+            2 => 0.20,
+            _ => 0.30,
+        };
+
+        // Change-type bonus: removals are more concerning
+        if item.change_type == ChangeType::Removed {
+            score += 0.15;
+        } else if item.change_type == ChangeType::Modified {
+            score += 0.05;
+        }
+
+        let confidence = score.clamp(0.0, 1.0);
+        item.confidence = Some(confidence);
+        item.confidence_level = Some(if confidence >= 0.8 {
+            ConfidenceLevel::High
+        } else if confidence >= 0.5 {
+            ConfidenceLevel::Medium
+        } else {
+            ConfidenceLevel::Low
+        });
     }
 }

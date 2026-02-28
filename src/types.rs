@@ -204,6 +204,13 @@ pub struct SecurityTagDefinition {
     pub false_positive_note: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ConfidenceLevel {
+    High,
+    Medium,
+    Low,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HighAttentionItem {
     pub reason: String,
@@ -214,6 +221,10 @@ pub struct HighAttentionItem {
     pub tags: Vec<String>,
     pub code_preview: String,
     pub snippet_ref: String,
+    #[serde(default)]
+    pub confidence: Option<f64>,
+    #[serde(default)]
+    pub confidence_level: Option<ConfidenceLevel>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
