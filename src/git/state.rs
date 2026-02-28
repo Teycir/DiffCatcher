@@ -55,7 +55,7 @@ pub fn capture_commit(repo: &Path, timeout_secs: u64, spec: &str) -> Result<Comm
     let hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", spec])?;
     let short_hash = run_git_expect_stdout(repo, timeout_secs, &["rev-parse", "--short", spec])?;
 
-    let pretty_ref = format!("{}", spec);
+    let pretty_ref = spec.to_string();
     let full_message = run_git_expect_stdout(
         repo,
         timeout_secs,

@@ -101,14 +101,14 @@ fn process_file_tags(
             }
         }
 
-        if !element.security_tags.is_empty() && element.change_type == ChangeType::Removed {
-            if !element
+        if !element.security_tags.is_empty()
+            && element.change_type == ChangeType::Removed
+            && !element
                 .security_tags
                 .iter()
                 .any(|tag| tag == "security-removal")
-            {
-                element.security_tags.push("security-removal".to_string());
-            }
+        {
+            element.security_tags.push("security-removal".to_string());
         }
 
         if element.security_tags.is_empty() {

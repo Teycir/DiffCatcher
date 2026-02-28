@@ -97,7 +97,7 @@ pub fn write_repo_report(
 pub fn write_top_level_reports(
     report_dir: &Path,
     summary: &GlobalSummary,
-    security_overview: &GlobalSecurityOverview,
+    security_overview: Option<&GlobalSecurityOverview>,
 ) -> Result<()> {
     fs::write(report_dir.join("summary.json"), to_pretty_json(summary)?)?;
     fs::write(
@@ -109,18 +109,20 @@ pub fn write_top_level_reports(
         markdown::render_global_summary(summary),
     )?;
 
-    fs::write(
-        report_dir.join("security_overview.json"),
-        to_pretty_json(security_overview)?,
-    )?;
-    fs::write(
-        report_dir.join("security_overview.txt"),
-        text::render_security_overview(security_overview),
-    )?;
-    fs::write(
-        report_dir.join("security_overview.md"),
-        markdown::render_security_overview(security_overview),
-    )?;
+    if let Some(security_overview) = security_overview {
+        fs::write(
+            report_dir.join("security_overview.json"),
+            to_pretty_json(security_overview)?,
+        )?;
+        fs::write(
+            report_dir.join("security_overview.txt"),
+            text::render_security_overview(security_overview),
+        )?;
+        fs::write(
+            report_dir.join("security_overview.md"),
+            markdown::render_security_overview(security_overview),
+        )?;
+    }
 
     Ok(())
 }
@@ -131,15 +133,32 @@ fn write_diff_summaries(
     summary_formats: &[SummaryFormat],
 ) -> Result<()> {
     if let Some(summary) = &mut diff.element_summary {
-        let snippets_dir = diffs_dir.join("snippets");
-        let mut seq = 1_usize;
-        for file_change in &mut diff.file_changes {
-            seq = write_snippets(
-                &snippets_dir,
-                &file_change.path,
-                &mut file_change.elements,
-                seq,
-            )?;
+        let should_write_snippets = diff.file_changes.iter().any(|file_change| {
+            file_change
+                .elements
+                .iter()
+                .any(|element| element.snippet.before.is_some() || element.snippet.after.is_some())
+        });
+
+        if should_write_snippets {
+            let snippets_dir = diffs_dir.join("snippets");
+            let mut seq = 1_usize;
+            for file_change in &mut diff.file_changes {
+                seq = write_snippets(
+                    &snippets_dir,
+                    &file_change.path,
+                    &mut file_change.elements,
+                    seq,
+                )?;
+            }
+            diff.snippets_dir = Some("diffs/snippets".to_string());
+        } else {
+            diff.snippets_dir = None;
+            for file_change in &mut diff.file_changes {
+                for element in &mut file_change.elements {
+                    element.snippet_files = None;
+                }
+            }
         }
 
         for source in &summary.elements {
@@ -168,7 +187,6 @@ fn write_diff_summaries(
             .iter()
             .flat_map(|f| f.elements.clone())
             .collect::<Vec<_>>();
-        diff.snippets_dir = Some("diffs/snippets".to_string());
     }
 
     if let Some(security_review) = &mut diff.security_review {

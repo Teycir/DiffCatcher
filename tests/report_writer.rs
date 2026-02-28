@@ -144,7 +144,8 @@ fn report_writer_outputs_expected_structure() {
     let summary =
         GlobalSummary::from_results(PathBuf::from("/tmp/root"), report_dir.clone(), &repos);
     let overview = build_global_security_overview(&repos);
-    write_top_level_reports(&report_dir, &summary, &overview).expect("write top-level reports");
+    write_top_level_reports(&report_dir, &summary, Some(&overview))
+        .expect("write top-level reports");
 
     assert!(report_dir.join("summary.json").exists());
     assert!(report_dir.join("summary.txt").exists());

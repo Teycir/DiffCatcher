@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -35,6 +36,7 @@ fn run() -> Result<i32> {
 
     let cli = Cli::parse();
     cli.validate().map_err(PatrolError::InvalidArgument)?;
+    ensure_git_available()?;
 
     if !cli.root_dir.exists() {
         return Err(PatrolError::MissingRoot(cli.root_dir.clone()));
@@ -114,9 +116,13 @@ fn run() -> Result<i32> {
     }
 
     let summary = GlobalSummary::from_results(cli.root_dir.clone(), report_dir.clone(), &results);
-    let security_overview = build_global_security_overview(&results);
+    let security_overview = if cli.no_security_tags {
+        None
+    } else {
+        Some(build_global_security_overview(&results))
+    };
 
-    write_top_level_reports(&report_dir, &summary, &security_overview)?;
+    write_top_level_reports(&report_dir, &summary, security_overview.as_ref())?;
     persist_incremental_state(&report_dir, &results)?;
 
     if cli.json_stdout {
@@ -210,4 +216,19 @@ fn build_progress_bar(total: u64, quiet: bool) -> Option<ProgressBar> {
     .unwrap_or_else(|_| ProgressStyle::default_bar());
     pb.set_style(style.progress_chars("##-"));
     Some(pb)
+}
+
+fn ensure_git_available() -> Result<()> {
+    let status = Command::new("git")
+        .arg("--version")
+        .status()
+        .map_err(|err| PatrolError::InvalidArgument(format!("git not found on PATH: {}", err)))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(PatrolError::InvalidArgument(
+            "git command is available but failed to execute".to_string(),
+        ))
+    }
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -11,6 +12,7 @@ use crate::git::commands::run_git;
 use crate::git::diff::{
     DiffPair, NameStatusEntry, build_history_pairs, generate_diff_artifacts, safe_diff_pair,
 };
+use crate::git::file_retrieval::show_file;
 use crate::git::state::{capture_commit, capture_repo_state};
 use crate::report::writer::repo_folder_name;
 use crate::security::tagger::tag_file_changes;
@@ -95,24 +97,24 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
     }
 
     let branch_pattern = Pattern::new(&cfg.branch_filter).ok();
-    if let Some(pattern) = branch_pattern {
-        if !pattern.matches(&branch) {
-            return RepoResult {
-                repo_path: repo_path.to_path_buf(),
-                repo_name,
-                report_folder_name,
-                branch,
-                status: RepoStatus::Skipped {
-                    reason: format!("branch '{}' does not match filter", pre_state.branch),
-                },
-                pre_pull: Some(pre_state.commit),
-                post_pull: None,
-                diffs: Vec::new(),
-                pull_log,
-                errors,
-                timestamp: Utc::now(),
-            };
-        }
+    if let Some(pattern) = branch_pattern
+        && !pattern.matches(&branch)
+    {
+        return RepoResult {
+            repo_path: repo_path.to_path_buf(),
+            repo_name,
+            report_folder_name,
+            branch,
+            status: RepoStatus::Skipped {
+                reason: format!("branch '{}' does not match filter", pre_state.branch),
+            },
+            pre_pull: Some(pre_state.commit),
+            post_pull: None,
+            diffs: Vec::new(),
+            pull_log,
+            errors,
+            timestamp: Utc::now(),
+        };
     }
 
     let pre_commit = pre_state.commit.clone();
@@ -126,19 +128,20 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                 pull_log.push_str("dirty repo, pull skipped\n");
             } else {
                 let mut stashed = false;
-                if pre_state.dirty && cfg.force_pull {
-                    if let Ok(stash_out) = run_git(
+                if pre_state.dirty
+                    && cfg.force_pull
+                    && let Ok(stash_out) = run_git(
                         repo_path,
                         cfg.timeout_secs,
                         &["stash", "push", "-m", "git-patrol auto-stash"],
-                    ) {
-                        pull_log.push_str(&stash_out.stdout);
-                        if !stash_out.stderr.is_empty() {
-                            pull_log.push('\n');
-                            pull_log.push_str(&stash_out.stderr);
-                        }
-                        stashed = stash_out.ok();
+                    )
+                {
+                    pull_log.push_str(&stash_out.stdout);
+                    if !stash_out.stderr.is_empty() {
+                        pull_log.push('\n');
+                        pull_log.push_str(&stash_out.stderr);
                     }
+                    stashed = stash_out.ok();
                 }
 
                 let pull_args = ["pull", cfg.pull_strategy.as_git_flag()];
@@ -180,16 +183,16 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                     }
                 }
 
-                if stashed {
-                    if let Ok(pop_out) = run_git(repo_path, cfg.timeout_secs, &["stash", "pop"]) {
-                        if !pop_out.stdout.is_empty() {
-                            pull_log.push_str(&pop_out.stdout);
-                            pull_log.push('\n');
-                        }
-                        if !pop_out.stderr.is_empty() {
-                            pull_log.push_str(&pop_out.stderr);
-                            pull_log.push('\n');
-                        }
+                if stashed
+                    && let Ok(pop_out) = run_git(repo_path, cfg.timeout_secs, &["stash", "pop"])
+                {
+                    if !pop_out.stdout.is_empty() {
+                        pull_log.push_str(&pop_out.stdout);
+                        pull_log.push('\n');
+                    }
+                    if !pop_out.stderr.is_empty() {
+                        pull_log.push_str(&pop_out.stderr);
+                        pull_log.push('\n');
                     }
                 }
             }
@@ -247,6 +250,7 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
         let _ = fs::create_dir_all(&diff_dir);
 
         let diff_pairs = build_pairs(repo_path, cfg, &pre_commit, &post_commit, &status);
+        let mut retrieval_cache: HashMap<(String, String), Option<String>> = HashMap::new();
 
         for pair in diff_pairs {
             if !safe_diff_pair(repo_path, cfg.timeout_secs, &pair) {
@@ -289,6 +293,16 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                             )
                         })) {
                             Ok((mut file_changes, element_summary)) => {
+                                apply_git_show_diffonly_fallback(
+                                    repo_path,
+                                    cfg.timeout_secs,
+                                    &from_commit.hash,
+                                    &to_commit.hash,
+                                    &mut file_changes,
+                                    &mut retrieval_cache,
+                                    &mut errors,
+                                );
+
                                 let security_review = if cfg.no_security_tags {
                                     None
                                 } else {
@@ -410,6 +424,85 @@ fn fallback_commit(spec: &str) -> CommitInfo {
         author: "unknown".to_string(),
         timestamp: Utc::now().to_rfc3339(),
     }
+}
+
+fn apply_git_show_diffonly_fallback(
+    repo_path: &Path,
+    timeout_secs: u64,
+    from_commit: &str,
+    to_commit: &str,
+    file_changes: &mut [FileChangeDetail],
+    cache: &mut HashMap<(String, String), Option<String>>,
+    errors: &mut Vec<String>,
+) {
+    for file in file_changes {
+        if file.elements.is_empty() {
+            continue;
+        }
+
+        let old_path = file.old_path.as_deref().unwrap_or(&file.path).to_string();
+        let new_path = file.path.clone();
+
+        let needs_old = !matches!(file.status, crate::types::FileStatus::Added);
+        let needs_new = !matches!(file.status, crate::types::FileStatus::Deleted);
+
+        let old_ok = if needs_old {
+            fetch_file_content(
+                repo_path,
+                timeout_secs,
+                from_commit,
+                &old_path,
+                cache,
+                errors,
+            )
+            .is_some()
+        } else {
+            true
+        };
+        let new_ok = if needs_new {
+            fetch_file_content(repo_path, timeout_secs, to_commit, &new_path, cache, errors)
+                .is_some()
+        } else {
+            true
+        };
+
+        if old_ok && new_ok {
+            continue;
+        }
+
+        for element in &mut file.elements {
+            element.snippet.before = None;
+            element.snippet.after = None;
+            element.snippet.capture_scope = crate::types::CaptureScope::DiffOnly;
+        }
+    }
+}
+
+fn fetch_file_content(
+    repo_path: &Path,
+    timeout_secs: u64,
+    commit: &str,
+    path: &str,
+    cache: &mut HashMap<(String, String), Option<String>>,
+    errors: &mut Vec<String>,
+) -> Option<String> {
+    let key = (commit.to_string(), path.to_string());
+    if let Some(cached) = cache.get(&key) {
+        return cached.clone();
+    }
+
+    let content = match show_file(repo_path, commit, path, timeout_secs) {
+        Ok(content) => content,
+        Err(err) => {
+            errors.push(format!(
+                "git show failed for {}:{}; using DiffOnly fallback ({})",
+                commit, path, err
+            ));
+            None
+        }
+    };
+    cache.insert(key, content.clone());
+    content
 }
 
 fn file_level_fallback(
