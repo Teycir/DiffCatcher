@@ -27,6 +27,8 @@ A Rust CLI tool that recursively discovers Git repositories, captures state chan
   - [Pull Modes](#pull-modes)
   - [Extraction Options](#extraction-options)
   - [Security Tagging](#security-tagging)
+  - [Configuration File](#configuration-file)
+  - [Plugin System](#plugin-system)
   - [Branch-Diff Mode (PR Review)](#branch-diff-mode-pr-review)
   - [SARIF Output](#sarif-output)
   - [Advanced Features](#advanced-features)
@@ -139,6 +141,54 @@ diffcatcher ~/projects --include-test-security
 
 # Use custom security patterns
 diffcatcher ~/projects --security-tags-file ./custom-patterns.json
+```
+
+### Configuration File
+
+DiffCatcher can auto-load project-local configuration from:
+
+- `<ROOT_DIR>/.diffcatcher.toml` (default)
+- a custom file via `--config <FILE>`
+- disabled with `--no-config`
+
+Example:
+
+```toml
+output = "reports-local"
+no_pull = true
+history_depth = 2
+summary_formats = ["json", "txt"]
+no_security_tags = false
+
+[plugins]
+security_pattern_files = ["plugins/security-extra.json"]
+extractor_files = ["plugins/extractors.json"]
+```
+
+CLI flags still override config values when explicitly set.
+
+### Plugin System
+
+DiffCatcher supports two plugin types:
+
+- Security pattern plugins via `--security-plugin-file <FILE>` (repeatable)
+- Extractor plugins via `--extractor-plugin-file <FILE>` (repeatable)
+
+Security plugin format matches `--security-tags-file` JSON (`version`, `mode`, `tags`).
+
+Extractor plugin format:
+
+```json
+{
+  "version": 1,
+  "extractors": [
+    {
+      "name": "policy-rule",
+      "kind": "Config",
+      "regex": "^policy\\s+([A-Za-z_][A-Za-z0-9_]*)"
+    }
+  ]
+}
 ```
 
 ### Branch-Diff Mode (PR Review)
@@ -298,6 +348,25 @@ Test coverage includes:
 - Integration tests for state capture, diff generation, reports
 - Golden-file tests for extraction accuracy
 - Edge case tests (detached HEAD, bare repos, single-commit)
+
+### Performance Benchmarks
+
+```bash
+# Compile benchmark binaries
+cargo bench --no-run
+
+# Run benchmark harness
+cargo bench --bench core_bench
+```
+
+Benchmark source lives in `benches/core_bench.rs` and tracks parser/extraction throughput.
+
+### CI/CD
+
+GitHub Actions workflows are included:
+
+- `.github/workflows/ci.yml`: format check, clippy, tests, bench build
+- `.github/workflows/release.yml`: tag-based release packaging and GitHub release publishing
 
 ## 📚 Documentation
 
