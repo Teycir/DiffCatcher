@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use classifier::classify_language;
 use elements::detect_elements;
 use parser::parse_unified_diff;
+use plugins::detect_plugin_elements;
 use rayon::prelude::*;
 use snippets::{SnippetOptions, build_snippet};
 
@@ -17,6 +18,7 @@ pub mod classifier;
 pub mod elements;
 pub mod languages;
 pub mod parser;
+pub mod plugins;
 pub mod snippets;
 
 #[derive(Debug, Clone)]
@@ -27,6 +29,7 @@ pub struct ExtractionOptions {
     pub max_snippet_lines: u32,
     pub max_elements: usize,
     pub include_vendor: bool,
+    pub plugin_extractors: Vec<plugins::ExtractorPlugin>,
 }
 
 pub fn extract_from_patch(
@@ -60,7 +63,19 @@ pub fn extract_from_patch(
             let elements = if options.no_summary_extraction || is_binary || is_vendor {
                 Vec::new()
             } else {
-                let detected = detect_elements(&file_path, &hunks, options.max_elements, &language);
+                let mut detected =
+                    detect_elements(&file_path, &hunks, options.max_elements, &language);
+                if !options.plugin_extractors.is_empty() && detected.len() < options.max_elements {
+                    let remaining = options.max_elements.saturating_sub(detected.len());
+                    let plugin_detected = detect_plugin_elements(
+                        &file_path,
+                        &hunks,
+                        &language,
+                        &options.plugin_extractors,
+                        remaining,
+                    );
+                    detected.extend(plugin_detected);
+                }
                 let snippet_options = SnippetOptions {
                     context_lines: options.snippet_context,
                     max_snippet_lines: options.max_snippet_lines,

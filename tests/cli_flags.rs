@@ -49,6 +49,25 @@ fn watch_requires_positive_interval() {
 }
 
 #[test]
+fn config_and_no_config_are_mutually_exclusive() {
+    let tmp = tempdir().expect("temp dir");
+    let cfg = tmp.path().join(".diffcatcher.toml");
+    std::fs::write(&cfg, "no_pull = true\n").expect("write config");
+
+    let output = Command::new(bin())
+        .arg(tmp.path())
+        .arg("--config")
+        .arg(&cfg)
+        .arg("--no-config")
+        .output()
+        .expect("run diffcatcher");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--config cannot be used together with --no-config"));
+}
+
+#[test]
 fn no_snippets_and_no_security_tags_skip_snippet_dir_and_overview() {
     let tmp = tempdir().expect("temp dir");
     let root = tmp.path().join("root");

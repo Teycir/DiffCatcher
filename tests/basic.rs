@@ -154,6 +154,7 @@ index 123..456 100644
             max_snippet_lines: 200,
             max_elements: 100,
             include_vendor: false,
+            plugin_extractors: Vec::new(),
         },
     );
 

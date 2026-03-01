@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{ArgAction, Parser, ValueEnum};
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
 pub enum PullStrategy {
     FfOnly,
     Rebase,
@@ -54,6 +54,20 @@ pub struct Cli {
         help = "Report output directory (default: ./reports/<timestamp>)"
     )]
     pub output: Option<PathBuf>,
+
+    #[arg(
+        long = "config",
+        value_name = "FILE",
+        help = "Path to .diffcatcher.toml (default: ROOT_DIR/.diffcatcher.toml if present)"
+    )]
+    pub config: Option<PathBuf>,
+
+    #[arg(
+        long = "no-config",
+        action = ArgAction::SetTrue,
+        help = "Do not load .diffcatcher.toml"
+    )]
+    pub no_config: bool,
 
     #[arg(
         long = "watch",
@@ -241,6 +255,22 @@ pub struct Cli {
     pub security_tags_file: Option<PathBuf>,
 
     #[arg(
+        long = "security-plugin-file",
+        value_name = "FILE",
+        action = ArgAction::Append,
+        help = "Additional security pattern plugin JSON file (repeatable)"
+    )]
+    pub security_plugin_files: Vec<PathBuf>,
+
+    #[arg(
+        long = "extractor-plugin-file",
+        value_name = "FILE",
+        action = ArgAction::Append,
+        help = "Custom extractor plugin JSON file (repeatable)"
+    )]
+    pub extractor_plugin_files: Vec<PathBuf>,
+
+    #[arg(
         long = "overwrite",
         action = ArgAction::SetTrue,
         help = "Overwrite an existing output directory"
@@ -310,6 +340,9 @@ impl Cli {
         }
         if self.watch && self.watch_interval == 0 {
             return Err("--watch-interval must be >= 1 when --watch is enabled".to_string());
+        }
+        if self.no_config && self.config.is_some() {
+            return Err("--config cannot be used together with --no-config".to_string());
         }
         Ok(())
     }

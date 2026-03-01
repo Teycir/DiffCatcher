@@ -149,6 +149,7 @@ fn processor_config(
             max_snippet_lines: 20,
             max_elements: 50,
             include_vendor: false,
+            plugin_extractors: Vec::new(),
         },
         no_security_tags: true,
         include_detached: true,

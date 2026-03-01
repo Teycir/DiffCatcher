@@ -12,8 +12,10 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 use diffcatcher::cli::{Cli, SummaryFormat};
+use diffcatcher::config::{RuntimeSettings, resolve_runtime_settings};
 use diffcatcher::error::{PatrolError, Result};
 use diffcatcher::extraction::ExtractionOptions;
+use diffcatcher::extraction::plugins::{ExtractorPlugin, load_extractor_plugins};
 use diffcatcher::git::commands::run_git_expect_stdout;
 use diffcatcher::processor::{ProcessorConfig, process_diff_refs, process_repository};
 use diffcatcher::report::writer::{prepare_report_dir, write_repo_report, write_top_level_reports};
@@ -45,22 +47,42 @@ fn run() -> Result<i32> {
         return Err(PatrolError::MissingRoot(root_dir.clone()));
     }
 
-    let tag_definitions = load_tag_definitions(cli.security_tags_file.as_deref())?;
+    let settings = resolve_runtime_settings(&cli, &root_dir)?;
+    let tag_definitions = load_tag_definitions(
+        settings.security_tags_file.as_deref(),
+        &settings.security_plugin_files,
+    )?;
+    let extractor_plugins = load_extractor_plugins(&settings.extractor_plugin_files)?;
 
-    if cli.watch {
-        return run_watch_mode(&cli, &root_dir, &tag_definitions);
+    if settings.watch {
+        return run_watch_mode(
+            &cli,
+            &settings,
+            &root_dir,
+            &tag_definitions,
+            &extractor_plugins,
+        );
     }
 
-    run_once(&cli, &root_dir, &tag_definitions)
+    run_once(
+        &cli,
+        &settings,
+        &root_dir,
+        &tag_definitions,
+        &extractor_plugins,
+    )
 }
 
 fn run_watch_mode(
     cli: &Cli,
+    settings: &RuntimeSettings,
     root_dir: &Path,
     tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
+    extractor_plugins: &[ExtractorPlugin],
 ) -> Result<i32> {
     loop {
-        let exit_code = match run_once(cli, root_dir, tag_definitions) {
+        let exit_code = match run_once(cli, settings, root_dir, tag_definitions, extractor_plugins)
+        {
             Ok(code) => code,
             Err(err) => {
                 eprintln!("watch iteration failed: {}", err);
@@ -68,85 +90,96 @@ fn run_watch_mode(
             }
         };
 
-        if !cli.quiet {
+        if !settings.quiet {
             println!(
                 "Watch iteration finished with exit code {}. Sleeping {}s before next run.",
-                exit_code, cli.watch_interval
+                exit_code, settings.watch_interval
             );
         }
-        thread::sleep(Duration::from_secs(cli.watch_interval));
+        thread::sleep(Duration::from_secs(settings.watch_interval));
     }
 }
 
 fn run_once(
     cli: &Cli,
+    settings: &RuntimeSettings,
     root_dir: &Path,
     tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
+    extractor_plugins: &[ExtractorPlugin],
 ) -> Result<i32> {
-    let report_dir = prepare_report_dir(cli.output.as_deref(), cli.overwrite)?;
+    let report_dir = prepare_report_dir(settings.output.as_deref(), settings.overwrite)?;
 
     // Branch-diff mode: diff two refs in a single repo.
     if let Some((base, head)) = cli.parsed_diff_refs() {
-        return run_diff_mode(cli, root_dir, &report_dir, tag_definitions, base, head);
+        return run_diff_mode(
+            settings,
+            root_dir,
+            &report_dir,
+            tag_definitions,
+            extractor_plugins,
+            base,
+            head,
+        );
     }
 
     // Standard scan mode.
     let scan_options = ScanOptions {
-        nested: cli.nested,
-        follow_symlinks: cli.follow_symlinks,
-        skip_hidden: cli.skip_hidden,
-        include_bare: cli.include_bare,
+        nested: settings.nested,
+        follow_symlinks: settings.follow_symlinks,
+        skip_hidden: settings.skip_hidden,
+        include_bare: settings.include_bare,
     };
 
     let mut repos = discover_repositories(root_dir, &scan_options)?;
     repos.sort();
 
-    if cli.verbose && !cli.quiet {
+    if settings.verbose && !settings.quiet {
         for repo in &repos {
             println!("{}", repo.display());
         }
     }
 
-    if cli.incremental {
-        repos = filter_incremental_repos(&report_dir, repos, cli.timeout)?;
+    if settings.incremental {
+        repos = filter_incremental_repos(&report_dir, repos, settings.timeout)?;
     }
 
     info!("discovered {} repositories", repos.len());
 
     let extraction = ExtractionOptions {
-        no_summary_extraction: cli.no_summary_extraction,
-        no_snippets: cli.no_snippets,
-        snippet_context: cli.snippet_context,
-        max_snippet_lines: cli.max_snippet_lines,
-        max_elements: cli.max_elements,
-        include_vendor: cli.include_vendor,
+        no_summary_extraction: settings.no_summary_extraction,
+        no_snippets: settings.no_snippets,
+        snippet_context: settings.snippet_context,
+        max_snippet_lines: settings.max_snippet_lines,
+        max_elements: settings.max_elements,
+        include_vendor: settings.include_vendor,
+        plugin_extractors: extractor_plugins.to_vec(),
     };
 
     let processor_cfg = ProcessorConfig {
         root_dir: root_dir.to_path_buf(),
         report_dir: report_dir.clone(),
-        timeout_secs: cli.timeout,
-        pull_mode: cli.effective_pull_mode(),
-        force_pull: cli.force_pull,
-        pull_strategy: cli.pull_strategy.clone(),
-        no_pull: cli.no_pull,
-        dry_run: cli.dry_run,
-        history_depth: cli.history_depth,
-        branch_filter: cli.branch_filter.clone(),
+        timeout_secs: settings.timeout,
+        pull_mode: settings.pull && !settings.no_pull,
+        force_pull: settings.force_pull,
+        pull_strategy: settings.pull_strategy.clone(),
+        no_pull: settings.no_pull,
+        dry_run: settings.dry_run,
+        history_depth: settings.history_depth,
+        branch_filter: settings.branch_filter.clone(),
         extraction,
-        no_security_tags: cli.no_security_tags,
-        include_detached: cli.include_detached,
-        include_test_security: cli.include_test_security,
+        no_security_tags: settings.no_security_tags,
+        include_detached: settings.include_detached,
+        include_test_security: settings.include_test_security,
         tag_definitions: tag_definitions.to_vec(),
-        verbose: cli.verbose,
+        verbose: settings.verbose,
     };
 
     rayon::ThreadPoolBuilder::new()
-        .num_threads(cli.parallel)
+        .num_threads(settings.parallel)
         .build_global()
         .ok();
 
-    let progress = build_progress_bar(repos.len() as u64, cli.quiet);
+    let progress = build_progress_bar(repos.len() as u64, settings.quiet);
     let progress_for_workers = progress.clone();
     let mut results: Vec<RepoResult> = repos
         .par_iter()
@@ -166,22 +199,27 @@ fn run_once(
 
     results
         .par_iter_mut()
-        .try_for_each(|repo| write_repo_report(&report_dir, repo, &cli.summary_formats))?;
+        .try_for_each(|repo| write_repo_report(&report_dir, repo, &settings.summary_formats))?;
 
     let summary = GlobalSummary::from_results(root_dir.to_path_buf(), report_dir.clone(), &results);
-    let security_overview = if cli.no_security_tags {
+    let security_overview = if settings.no_security_tags {
         None
     } else {
         Some(build_global_security_overview(&results))
     };
 
     write_top_level_reports(&report_dir, &summary, security_overview.as_ref())?;
-    write_sarif_if_requested(cli, &report_dir, &results, tag_definitions)?;
+    write_sarif_if_requested(
+        &settings.summary_formats,
+        &report_dir,
+        &results,
+        tag_definitions,
+    )?;
     persist_incremental_state(&report_dir, &results)?;
 
-    if cli.json_stdout {
+    if settings.json_stdout {
         println!("{}", serde_json::to_string_pretty(&summary)?);
-    } else if !cli.quiet {
+    } else if !settings.quiet {
         println!(
             "DiffCatcher complete: {} repos scanned, {} updated, {} security-tagged elements. Report: {}",
             summary.total_repos_found,
@@ -195,20 +233,22 @@ fn run_once(
 }
 
 fn run_diff_mode(
-    cli: &Cli,
+    settings: &RuntimeSettings,
     repo_path: &Path,
     report_dir: &Path,
     tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
+    extractor_plugins: &[ExtractorPlugin],
     base: &str,
     head: &str,
 ) -> Result<i32> {
     let extraction = ExtractionOptions {
-        no_summary_extraction: cli.no_summary_extraction,
-        no_snippets: cli.no_snippets,
-        snippet_context: cli.snippet_context,
-        max_snippet_lines: cli.max_snippet_lines,
-        max_elements: cli.max_elements,
-        include_vendor: cli.include_vendor,
+        no_summary_extraction: settings.no_summary_extraction,
+        no_snippets: settings.no_snippets,
+        snippet_context: settings.snippet_context,
+        max_snippet_lines: settings.max_snippet_lines,
+        max_elements: settings.max_elements,
+        include_vendor: settings.include_vendor,
+        plugin_extractors: extractor_plugins.to_vec(),
     };
 
     let mut result = process_diff_refs(
@@ -216,31 +256,36 @@ fn run_diff_mode(
         report_dir,
         base,
         head,
-        cli.timeout,
+        settings.timeout,
         &extraction,
-        cli.no_security_tags,
-        cli.include_test_security,
+        settings.no_security_tags,
+        settings.include_test_security,
         tag_definitions,
-        cli.verbose,
+        settings.verbose,
     );
 
-    write_repo_report(report_dir, &mut result, &cli.summary_formats)?;
+    write_repo_report(report_dir, &mut result, &settings.summary_formats)?;
 
     let results = vec![result];
     let summary =
         GlobalSummary::from_results(repo_path.to_path_buf(), report_dir.to_path_buf(), &results);
-    let security_overview = if cli.no_security_tags {
+    let security_overview = if settings.no_security_tags {
         None
     } else {
         Some(build_global_security_overview(&results))
     };
 
     write_top_level_reports(report_dir, &summary, security_overview.as_ref())?;
-    write_sarif_if_requested(cli, report_dir, &results, tag_definitions)?;
+    write_sarif_if_requested(
+        &settings.summary_formats,
+        report_dir,
+        &results,
+        tag_definitions,
+    )?;
 
-    if cli.json_stdout {
+    if settings.json_stdout {
         println!("{}", serde_json::to_string_pretty(&summary)?);
-    } else if !cli.quiet {
+    } else if !settings.quiet {
         let sec_count = summary.total_security_tagged_elements;
         println!(
             "DiffCatcher diff complete: {}..{}, {} security-tagged elements. Report: {}",
@@ -255,12 +300,12 @@ fn run_diff_mode(
 }
 
 fn write_sarif_if_requested(
-    cli: &Cli,
+    summary_formats: &[SummaryFormat],
     report_dir: &Path,
     results: &[RepoResult],
     tag_definitions: &[diffcatcher::types::SecurityTagDefinition],
 ) -> Result<()> {
-    if !cli.summary_formats.contains(&SummaryFormat::Sarif) {
+    if !summary_formats.contains(&SummaryFormat::Sarif) {
         return Ok(());
     }
 
