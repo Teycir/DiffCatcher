@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: diffcatcher-linux-x86_64
+            archive_name: diffcatcher-linux-x86_64.tar.gz
+            binary_path: target/release/diffcatcher
+          - os: macos-latest
+            artifact_name: diffcatcher-macos-x86_64
+            archive_name: diffcatcher-macos-x86_64.tar.gz
+            binary_path: target/release/diffcatcher
+          - os: windows-latest
+            artifact_name: diffcatcher-windows-x86_64
+            archive_name: diffcatcher-windows-x86_64.zip
+            binary_path: target/release/diffcatcher.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Release Binary
+        run: cargo build --release
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tar -czf "${{ matrix.archive_name }}" -C target/release diffcatcher
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path target/release/diffcatcher.exe -DestinationPath "${{ matrix.archive_name }}"
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.archive_name }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/**/*.tar.gz
+            dist/**/*.zip
