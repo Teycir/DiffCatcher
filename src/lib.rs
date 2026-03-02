@@ -4,6 +4,7 @@ pub mod error;
 pub mod extraction;
 pub mod git;
 pub mod processor;
+pub mod progress;
 pub mod report;
 pub mod scanner;
 pub mod security;

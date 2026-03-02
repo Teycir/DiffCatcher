@@ -14,6 +14,7 @@ use crate::git::diff::{
 };
 use crate::git::file_retrieval::show_file;
 use crate::git::state::{capture_commit, capture_repo_state};
+use crate::progress::{ProcessingState, StateCallback};
 use crate::report::writer::repo_folder_name;
 use crate::security::tagger::tag_file_changes;
 use crate::types::{
@@ -227,18 +228,29 @@ pub fn process_diff_refs(
     }
 }
 
-pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult {
+pub fn process_repository<'a>(
+    repo_path: &Path,
+    cfg: &ProcessorConfig,
+    on_state: Option<&StateCallback<'a>>,
+) -> RepoResult {
     let repo_name = repo_path
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("repo")
         .to_string();
 
+    let emit = |state: ProcessingState| {
+        if let Some(cb) = on_state {
+            cb(&repo_name, state);
+        }
+    };
+
     let report_folder_name = repo_folder_name(&cfg.root_dir, repo_path);
 
     let mut pull_log = String::new();
     let mut errors = Vec::new();
 
+    emit(ProcessingState::CapturingState);
     let pre_state = match capture_repo_state(repo_path, cfg.timeout_secs, cfg.pull_mode) {
         Ok(state) => state,
         Err(err) => {
@@ -306,6 +318,11 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
     let mut status = RepoStatus::UpToDate;
 
     if !cfg.dry_run && !cfg.no_pull {
+        emit(if cfg.pull_mode {
+            ProcessingState::Pulling
+        } else {
+            ProcessingState::Fetching
+        });
         if cfg.pull_mode {
             if pre_state.dirty && !cfg.force_pull {
                 status = RepoStatus::DirtySkipped;
@@ -429,6 +446,7 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
 
     let mut diffs = Vec::new();
     if matches!(status, RepoStatus::Updated | RepoStatus::UpToDate) {
+        emit(ProcessingState::GeneratingDiffs);
         let repo_report_dir = cfg.report_dir.join(&report_folder_name);
         let diff_dir = repo_report_dir.join("diffs");
         let _ = fs::create_dir_all(&diff_dir);
@@ -457,6 +475,7 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                     let patch_path = diff_dir.join(&artifacts.patch_filename);
                     let patch_bytes = fs::read(&patch_path).unwrap_or_default();
 
+                    emit(ProcessingState::ExtractingElements);
                     let (file_changes, element_summary, security_review) = if patch_bytes.len()
                         > MAX_PATCH_BYTES
                     {
@@ -487,6 +506,7 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
                                     &mut errors,
                                 );
 
+                                emit(ProcessingState::SecurityTagging);
                                 let security_review = if cfg.no_security_tags {
                                     None
                                 } else {
@@ -539,6 +559,21 @@ pub fn process_repository(repo_path: &Path, cfg: &ProcessorConfig) -> RepoResult
             }
         }
     }
+
+    emit(if errors.is_empty()
+        && !matches!(
+            status,
+            RepoStatus::FetchFailed { .. } | RepoStatus::PullFailed { .. }
+        ) {
+        ProcessingState::Complete
+    } else if matches!(
+        status,
+        RepoStatus::FetchFailed { .. } | RepoStatus::PullFailed { .. }
+    ) {
+        ProcessingState::Failed
+    } else {
+        ProcessingState::Complete
+    });
 
     RepoResult {
         repo_path: repo_path.to_path_buf(),

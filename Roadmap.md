@@ -227,3 +227,112 @@
 - [x] `cargo clippy` — zero warnings
 - [x] `cargo test` — all tests pass
 - [ ] Tag as v1.0.0
+
+---
+
+## Phase 11 — Enhanced Console Progress Reporting
+
+### Objective
+Provide detailed, real-time console feedback showing repo-by-repo progress through each processing state, with a comprehensive summary at completion.
+
+### Requirements
+
+#### 11.1 Repo-by-Repo Progress Display
+- [x] Display each repository as it begins processing:
+  - [x] Format: `[N/TOTAL] Processing: <repo-name>`
+  - [x] Show repository path (truncated if too long)
+  - [x] Include timestamp or elapsed time
+
+#### 11.2 State-by-State Progress Tracking
+- [x] Show current processing state for each repo:
+  - [x] `Discovering...` - Initial repository validation
+  - [x] `Capturing state...` - Pre-fetch state capture
+  - [x] `Fetching...` / `Pulling...` - Git operations
+  - [x] `Generating diffs...` - Diff creation (show count: N vs N-1, etc.)
+  - [x] `Extracting elements...` - Code element parsing (show file count)
+  - [x] `Security tagging...` - Pattern matching (show element count)
+  - [x] `Writing reports...` - Report generation
+  - [x] `Complete ✓` - Success with status (Updated/UpToDate/etc.)
+  - [x] `Failed ✗` - Error with brief reason
+
+#### 11.3 Per-Repo Statistics
+- [x] Display key metrics after each repo completes:
+  - [x] Files changed: `+N -M`
+  - [x] Elements extracted: `N total (A added, M modified, R removed)`
+  - [x] Security tags: `N flagged elements`
+  - [x] Processing time: `completed in Xs`
+
+#### 11.4 Summary Message
+- [x] Display comprehensive summary at end:
+  - [x] Total repositories processed
+  - [x] Status breakdown: Updated, UpToDate, Failed, Skipped
+  - [x] Aggregate statistics:
+    - [x] Total files changed across all repos
+    - [x] Total elements extracted
+    - [x] Total security-tagged elements
+    - [x] High-attention items count
+  - [x] Performance metrics:
+    - [x] Total execution time
+    - [x] Average time per repo
+    - [x] Parallel workers used
+  - [x] Report location with clickable path
+  - [x] Exit code explanation if non-zero
+
+#### 11.5 Output Modes
+- [x] Implement verbosity levels:
+  - [x] `--quiet`: Suppress all progress, show only summary
+  - [x] Default: Show repo names + final status + summary
+  - [x] `--verbose`: Show all state transitions + detailed stats
+  - [x] `--json`: Machine-readable progress events to stdout
+
+#### 11.6 Parallel Processing Considerations
+- [x] Handle concurrent output from parallel workers:
+  - [x] Use thread-safe output mechanism (mutex or channel)
+  - [x] Maintain clean output without interleaving
+  - [x] Option: Sequential display vs. live updates
+  - [x] Consider using `indicatif::MultiProgress` for parallel bars
+
+#### 11.7 Progress Bar Enhancement
+- [x] Enhance existing progress bar:
+  - [x] Show current repo name in progress bar
+  - [x] Display current state in progress bar message
+  - [x] Add ETA based on average processing time
+  - [x] Color-code by status (green=success, yellow=warning, red=error)
+
+#### 11.8 Error Reporting
+- [x] Improve error visibility:
+  - [x] Show errors inline as they occur
+  - [x] Collect and display all errors in summary
+  - [x] Provide actionable error messages
+  - [x] Suggest fixes for common issues (git not found, permissions, etc.)
+
+### Implementation Notes
+
+**Module Changes:**
+- `main.rs`: Add progress reporting wrapper around parallel processing
+- `processor.rs`: Emit state change events/callbacks
+- New module: `progress.rs` - Centralized progress reporting
+- Use `indicatif::MultiProgress` for parallel repo tracking
+- Use `tracing` events for structured logging
+
+**Design Considerations:**
+- Maintain backward compatibility with existing `--quiet` flag
+- Ensure progress output doesn't interfere with `--json` stdout mode
+- Keep progress overhead minimal (<5% performance impact)
+- Support both TTY (interactive) and non-TTY (CI/CD) environments
+
+### Testing
+- [x] Unit tests: Progress message formatting
+- [x] Integration tests: Verify progress output in various modes
+- [ ] Manual testing: Run against 50+ repos, verify clean output
+- [x] CI testing: Verify non-TTY output is clean
+
+### Acceptance Criteria
+- [x] User can see which repo is currently being processed
+- [x] User can see what state each repo is in during processing
+- [x] User receives a clear summary of all operations at completion
+- [x] Progress output is clean and readable in both serial and parallel modes
+- [x] `--quiet` mode suppresses progress but shows summary
+- [x] `--verbose` mode shows detailed state transitions
+- [x] Performance impact is negligible (<5% overhead)
+- [x] Works correctly in both TTY and non-TTY environments

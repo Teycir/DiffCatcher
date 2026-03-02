@@ -39,7 +39,7 @@ fn fetch_mode_transitions_from_up_to_date_to_updated() {
 
     let cfg = processor_config(root, root.join("report"), false, false);
 
-    let first = process_repository(&local, &cfg);
+    let first = process_repository(&local, &cfg, None);
     assert!(matches!(first.status, RepoStatus::UpToDate));
     let first_pre = first.pre_pull.as_ref().expect("pre pull hash").hash.clone();
     let first_post = first
@@ -55,7 +55,7 @@ fn fetch_mode_transitions_from_up_to_date_to_updated() {
     git(&seed, &["commit", "-m", "v2"]);
     git(&seed, &["push", "origin", "HEAD"]);
 
-    let second = process_repository(&local, &cfg);
+    let second = process_repository(&local, &cfg, None);
     assert!(matches!(second.status, RepoStatus::Updated));
     let second_pre = second
         .pre_pull
@@ -102,7 +102,7 @@ fn pull_mode_skips_pull_when_up_to_date() {
     ]);
 
     let cfg = processor_config(root, root.join("report-pull"), false, true);
-    let result = process_repository(&local, &cfg);
+    let result = process_repository(&local, &cfg, None);
 
     assert!(matches!(result.status, RepoStatus::UpToDate));
     let pre = result

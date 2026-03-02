@@ -2,11 +2,11 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use clap::Parser;
-use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -18,6 +18,7 @@ use diffcatcher::extraction::ExtractionOptions;
 use diffcatcher::extraction::plugins::{ExtractorPlugin, load_extractor_plugins};
 use diffcatcher::git::commands::run_git_expect_stdout;
 use diffcatcher::processor::{ProcessorConfig, process_diff_refs, process_repository};
+use diffcatcher::progress::{ProgressReporter, Verbosity};
 use diffcatcher::report::writer::{prepare_report_dir, write_repo_report, write_top_level_reports};
 use diffcatcher::scanner::{ScanOptions, discover_repositories};
 use diffcatcher::security::{load_tag_definitions, overview::build_global_security_overview};
@@ -179,21 +180,42 @@ fn run_once(
         .build_global()
         .ok();
 
-    let progress = build_progress_bar(repos.len() as u64, settings.quiet);
-    let progress_for_workers = progress.clone();
+    let verbosity = if settings.json_stdout {
+        Verbosity::Json
+    } else if settings.quiet {
+        Verbosity::Quiet
+    } else if settings.verbose {
+        Verbosity::Verbose
+    } else {
+        Verbosity::Default
+    };
+
+    let reporter = Arc::new(ProgressReporter::new(
+        repos.len() as u32,
+        verbosity,
+        settings.parallel,
+    ));
+    let reporter_for_workers = reporter.clone();
+
     let mut results: Vec<RepoResult> = repos
         .par_iter()
         .map(|repo_path| {
-            let result = process_repository(repo_path, &processor_cfg);
-            if let Some(pb) = &progress_for_workers {
-                pb.inc(1);
-            }
+            let repo_name = repo_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("repo")
+                .to_string();
+            reporter_for_workers.repo_started(&repo_name);
+            let start = Instant::now();
+            let cb = |name: &str, state| {
+                reporter_for_workers.repo_state_changed(name, state);
+            };
+            let result = process_repository(repo_path, &processor_cfg, Some(&cb));
+            reporter_for_workers.repo_completed(&result, start.elapsed());
             result
         })
         .collect();
-    if let Some(pb) = &progress {
-        pb.finish_and_clear();
-    }
+    reporter.finish();
 
     results.sort_by(|a, b| a.report_folder_name.cmp(&b.report_folder_name));
 
@@ -217,19 +239,15 @@ fn run_once(
     )?;
     persist_incremental_state(&report_dir, &results)?;
 
+    let exit_code = exit_code_for_results(&results);
+
     if settings.json_stdout {
         println!("{}", serde_json::to_string_pretty(&summary)?);
-    } else if !settings.quiet {
-        println!(
-            "DiffCatcher complete: {} repos scanned, {} updated, {} security-tagged elements. Report: {}",
-            summary.total_repos_found,
-            summary.updated,
-            summary.total_security_tagged_elements,
-            report_dir.display(),
-        );
     }
 
-    Ok(exit_code_for_results(&results))
+    reporter.print_summary(&summary, &results, &report_dir, exit_code);
+
+    Ok(exit_code)
 }
 
 fn run_diff_mode(
@@ -373,20 +391,6 @@ fn filter_incremental_repos(
         .collect();
 
     Ok(filtered)
-}
-
-fn build_progress_bar(total: u64, quiet: bool) -> Option<ProgressBar> {
-    if quiet {
-        return None;
-    }
-
-    let pb = ProgressBar::new(total);
-    let style = ProgressStyle::with_template(
-        "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} repos ({eta})",
-    )
-    .unwrap_or_else(|_| ProgressStyle::default_bar());
-    pb.set_style(style.progress_chars("##-"));
-    Some(pb)
 }
 
 fn ensure_git_available() -> Result<()> {

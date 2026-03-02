@@ -19,7 +19,7 @@ fn detached_head_repo_is_skipped_when_not_included() {
     run_git(&repo, &["checkout", "--detach", "HEAD"]);
 
     let cfg = processor_config(tmp.path(), false);
-    let result = process_repository(&repo, &cfg);
+    let result = process_repository(&repo, &cfg, None);
 
     assert!(matches!(result.status, RepoStatus::Skipped { .. }));
 }
@@ -32,7 +32,7 @@ fn single_commit_repo_handles_history_depth_without_crash() {
     init_repo_with_commit(&repo);
 
     let cfg = processor_config(tmp.path(), true);
-    let result = process_repository(&repo, &cfg);
+    let result = process_repository(&repo, &cfg, None);
 
     assert!(matches!(result.status, RepoStatus::UpToDate));
     assert!(result.diffs.is_empty());
@@ -105,7 +105,7 @@ fn zero_commit_repo_reports_failure_without_panicking() {
     run_git(&repo, &["init"]);
 
     let cfg = processor_config(tmp.path(), true);
-    let result = process_repository(&repo, &cfg);
+    let result = process_repository(&repo, &cfg, None);
 
     assert!(matches!(result.status, RepoStatus::FetchFailed { .. }));
     assert!(!result.errors.is_empty());
@@ -132,7 +132,7 @@ fn merge_commit_repo_is_processed_without_crash() {
 
     let mut cfg = processor_config(tmp.path(), true);
     cfg.history_depth = 3;
-    let result = process_repository(&repo, &cfg);
+    let result = process_repository(&repo, &cfg, None);
 
     assert!(matches!(result.status, RepoStatus::UpToDate));
     assert!(!result.diffs.is_empty());
@@ -194,7 +194,7 @@ fn non_utf8_file_changes_are_processed_without_panicking() {
     run_git(&repo, &["commit", "-m", "update binary"]);
 
     let cfg = processor_config(tmp.path(), true);
-    let result = process_repository(&repo, &cfg);
+    let result = process_repository(&repo, &cfg, None);
 
     assert!(matches!(result.status, RepoStatus::UpToDate));
     assert!(!result.diffs.is_empty());
@@ -215,7 +215,7 @@ fn history_depth_one_produces_empty_diff_set_for_up_to_date_repo() {
     let mut cfg = processor_config(tmp.path(), true);
     cfg.history_depth = 1;
 
-    let result = process_repository(&repo, &cfg);
+    let result = process_repository(&repo, &cfg, None);
     assert!(matches!(result.status, RepoStatus::UpToDate));
     assert!(result.diffs.is_empty());
 }
