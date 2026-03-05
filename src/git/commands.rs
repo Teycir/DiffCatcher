@@ -16,13 +16,26 @@ impl GitCommandOutput {
     }
 }
 
-pub fn run_git(repo: &Path, timeout_secs: u64, args: &[&str]) -> Result<GitCommandOutput> {
-    let output = Command::new("timeout")
-        .arg(timeout_secs.to_string())
+#[cfg(unix)]
+fn build_git_command(repo: &Path, timeout_secs: u64, args: &[&str]) -> Command {
+    let mut cmd = Command::new("timeout");
+    cmd.arg(timeout_secs.to_string())
         .arg("git")
         .arg("-C")
         .arg(repo)
-        .args(args)
+        .args(args);
+    cmd
+}
+
+#[cfg(not(unix))]
+fn build_git_command(repo: &Path, _timeout_secs: u64, args: &[&str]) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(repo).args(args);
+    cmd
+}
+
+pub fn run_git(repo: &Path, timeout_secs: u64, args: &[&str]) -> Result<GitCommandOutput> {
+    let output = build_git_command(repo, timeout_secs, args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()

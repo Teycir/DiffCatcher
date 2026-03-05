@@ -251,20 +251,11 @@ fn processor_config(root: &Path, include_detached: bool) -> ProcessorConfig {
 
 fn init_repo_with_commit(path: &Path) {
     run_git(path, &["init"]);
+    run_git(path, &["config", "user.name", "Test"]);
+    run_git(path, &["config", "user.email", "test@example.com"]);
     std::fs::write(path.join("file.txt"), "hello\n").expect("write file");
     run_git(path, &["add", "."]);
-    run_git(
-        path,
-        &[
-            "-c",
-            "user.name=Test",
-            "-c",
-            "user.email=test@example.com",
-            "commit",
-            "-m",
-            "init",
-        ],
-    );
+    run_git(path, &["commit", "-m", "init"]);
 }
 
 fn run_git(repo: &Path, args: &[&str]) {
