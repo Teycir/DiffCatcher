@@ -45,17 +45,22 @@ pub struct ProcessorConfig {
     pub verbose: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct DiffRefsConfig<'a> {
+    pub timeout_secs: u64,
+    pub extraction: &'a ExtractionOptions,
+    pub no_security_tags: bool,
+    pub include_test_security: bool,
+    pub tag_definitions: &'a [SecurityTagDefinition],
+    pub verbose: bool,
+}
+
 pub fn process_diff_refs(
     repo_path: &Path,
     report_dir: &Path,
     base_ref: &str,
     head_ref: &str,
-    timeout_secs: u64,
-    extraction: &ExtractionOptions,
-    no_security_tags: bool,
-    include_test_security: bool,
-    tag_definitions: &[SecurityTagDefinition],
-    _verbose: bool,
+    config: &DiffRefsConfig,
 ) -> RepoResult {
     let repo_name = repo_path
         .file_name()
@@ -66,7 +71,7 @@ pub fn process_diff_refs(
     let report_folder_name = repo_name.clone();
     let mut errors = Vec::new();
 
-    let base_commit = match capture_commit(repo_path, timeout_secs, base_ref) {
+    let base_commit = match capture_commit(repo_path, config.timeout_secs, base_ref) {
         Ok(c) => c,
         Err(err) => {
             return RepoResult {
@@ -87,7 +92,7 @@ pub fn process_diff_refs(
         }
     };
 
-    let head_commit = match capture_commit(repo_path, timeout_secs, head_ref) {
+    let head_commit = match capture_commit(repo_path, config.timeout_secs, head_ref) {
         Ok(c) => c,
         Err(err) => {
             return RepoResult {
@@ -125,7 +130,7 @@ pub fn process_diff_refs(
     let mut diffs = Vec::new();
     let mut retrieval_cache = ShowFileCache::new(SHOW_FILE_CACHE_CAPACITY);
 
-    match generate_diff_artifacts(repo_path, &diff_dir, timeout_secs, &pair) {
+    match generate_diff_artifacts(repo_path, &diff_dir, config.timeout_secs, &pair) {
         Ok(artifacts) => {
             let patch_path = diff_dir.join(&artifacts.patch_filename);
             let patch_bytes = fs::read(&patch_path).unwrap_or_default();
@@ -145,13 +150,13 @@ pub fn process_diff_refs(
                             &artifacts.name_status,
                             &base_commit.hash,
                             &head_commit.hash,
-                            extraction,
+                            config.extraction,
                         )
                     })) {
                         Ok((mut file_changes, element_summary)) => {
                             apply_git_show_diffonly_fallback(
                                 repo_path,
-                                timeout_secs,
+                                config.timeout_secs,
                                 &base_commit.hash,
                                 &head_commit.hash,
                                 &mut file_changes,
@@ -159,13 +164,13 @@ pub fn process_diff_refs(
                                 &mut errors,
                             );
 
-                            let security_review = if no_security_tags {
+                            let security_review = if config.no_security_tags {
                                 None
                             } else {
                                 match tag_file_changes(
                                     &mut file_changes,
-                                    tag_definitions,
-                                    include_test_security,
+                                    config.tag_definitions,
+                                    config.include_test_security,
                                 ) {
                                     Ok(review) => Some(review),
                                     Err(err) => {
@@ -560,20 +565,23 @@ pub fn process_repository<'a>(
         }
     }
 
-    emit(if errors.is_empty()
-        && !matches!(
+    emit(
+        if errors.is_empty()
+            && !matches!(
+                status,
+                RepoStatus::FetchFailed { .. } | RepoStatus::PullFailed { .. }
+            )
+        {
+            ProcessingState::Complete
+        } else if matches!(
             status,
             RepoStatus::FetchFailed { .. } | RepoStatus::PullFailed { .. }
         ) {
-        ProcessingState::Complete
-    } else if matches!(
-        status,
-        RepoStatus::FetchFailed { .. } | RepoStatus::PullFailed { .. }
-    ) {
-        ProcessingState::Failed
-    } else {
-        ProcessingState::Complete
-    });
+            ProcessingState::Failed
+        } else {
+            ProcessingState::Complete
+        },
+    );
 
     RepoResult {
         repo_path: repo_path.to_path_buf(),

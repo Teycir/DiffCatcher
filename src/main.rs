@@ -17,7 +17,9 @@ use diffcatcher::error::{PatrolError, Result};
 use diffcatcher::extraction::ExtractionOptions;
 use diffcatcher::extraction::plugins::{ExtractorPlugin, load_extractor_plugins};
 use diffcatcher::git::commands::run_git_expect_stdout;
-use diffcatcher::processor::{ProcessorConfig, process_diff_refs, process_repository};
+use diffcatcher::processor::{
+    DiffRefsConfig, ProcessorConfig, process_diff_refs, process_repository,
+};
 use diffcatcher::progress::{ProgressReporter, Verbosity};
 use diffcatcher::report::writer::{prepare_report_dir, write_repo_report, write_top_level_reports};
 use diffcatcher::scanner::{ScanOptions, discover_repositories};
@@ -269,18 +271,16 @@ fn run_diff_mode(
         plugin_extractors: extractor_plugins.to_vec(),
     };
 
-    let mut result = process_diff_refs(
-        repo_path,
-        report_dir,
-        base,
-        head,
-        settings.timeout,
-        &extraction,
-        settings.no_security_tags,
-        settings.include_test_security,
+    let config = DiffRefsConfig {
+        timeout_secs: settings.timeout,
+        extraction: &extraction,
+        no_security_tags: settings.no_security_tags,
+        include_test_security: settings.include_test_security,
         tag_definitions,
-        settings.verbose,
-    );
+        verbose: settings.verbose,
+    };
+
+    let mut result = process_diff_refs(repo_path, report_dir, base, head, &config);
 
     write_repo_report(report_dir, &mut result, &settings.summary_formats)?;
 

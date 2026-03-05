@@ -1,13 +1,11 @@
 use std::fmt;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
-use crate::types::{
-    ChangeType, GlobalSummary, RepoResult, RepoStatus,
-};
+use crate::types::{ChangeType, GlobalSummary, RepoResult, RepoStatus};
 
 // ── Processing states ──────────────────────────────────────────────────────
 
@@ -71,8 +69,7 @@ impl RepoStats {
 
             if let Some(es) = &diff.element_summary {
                 stats.elements_total += es.total_elements;
-                stats.elements_added +=
-                    *es.by_change_type.get(&ChangeType::Added).unwrap_or(&0);
+                stats.elements_added += *es.by_change_type.get(&ChangeType::Added).unwrap_or(&0);
                 stats.elements_modified +=
                     *es.by_change_type.get(&ChangeType::Modified).unwrap_or(&0);
                 stats.elements_removed +=
@@ -187,13 +184,9 @@ impl ProgressReporter {
             state.repo_times.push(elapsed);
 
             if let RepoStatus::FetchFailed { ref error } = result.status {
-                state
-                    .errors
-                    .push((result.repo_name.clone(), error.clone()));
+                state.errors.push((result.repo_name.clone(), error.clone()));
             } else if let RepoStatus::PullFailed { ref error } = result.status {
-                state
-                    .errors
-                    .push((result.repo_name.clone(), error.clone()));
+                state.errors.push((result.repo_name.clone(), error.clone()));
             }
             for err in &result.errors {
                 if !matches!(
@@ -364,9 +357,18 @@ impl ProgressReporter {
 
         // Aggregate statistics
         out.push_str("  Statistics:\n");
-        out.push_str(&format!("    Files changed:           {}\n", total_files_changed));
-        out.push_str(&format!("    Elements extracted:       {}\n", total_elements));
-        out.push_str(&format!("    Security-tagged elements: {}\n", total_security));
+        out.push_str(&format!(
+            "    Files changed:           {}\n",
+            total_files_changed
+        ));
+        out.push_str(&format!(
+            "    Elements extracted:       {}\n",
+            total_elements
+        ));
+        out.push_str(&format!(
+            "    Security-tagged elements: {}\n",
+            total_security
+        ));
         if high_attention > 0 {
             out.push_str(&format!(
                 "    \x1b[31mHigh-attention items:      {}\x1b[0m\n",
@@ -426,10 +428,11 @@ impl ProgressReporter {
                 .errors
                 .iter()
                 .any(|(_, e)| e.contains("timeout") || e.contains("Timeout"));
-            let has_auth = state
-                .errors
-                .iter()
-                .any(|(_, e)| e.contains("Authentication") || e.contains("authentication") || e.contains("could not read Username"));
+            let has_auth = state.errors.iter().any(|(_, e)| {
+                e.contains("Authentication")
+                    || e.contains("authentication")
+                    || e.contains("could not read Username")
+            });
 
             if has_permission || has_timeout || has_auth {
                 out.push('\n');

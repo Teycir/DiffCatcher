@@ -30,7 +30,7 @@ pub enum PatrolError {
     Regex(#[from] regex::Error),
 
     #[error("fancy-regex error: {0}")]
-    FancyRegex(#[from] fancy_regex::Error),
+    FancyRegex(#[from] Box<fancy_regex::Error>),
 }
 
 pub type Result<T> = std::result::Result<T, PatrolError>;

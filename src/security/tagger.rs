@@ -62,7 +62,7 @@ fn compile_pattern(pattern: &str, kind: Option<PatternKind>) -> Result<CompiledP
     let pat = format!("(?i){}", pattern);
     match kind {
         Some(PatternKind::FancyRegex) => {
-            let re = FancyRegex::new(&pat)?;
+            let re = FancyRegex::new(&pat).map_err(Box::new)?;
             Ok(CompiledPattern::Fancy(re))
         }
         _ => {
