@@ -1,10 +1,16 @@
-# DiffCatcher
+<div align="center">
+  <img src="assets/logo.svg" alt="DiffCatcher Logo" width="100%" />
 
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Security](https://img.shields.io/badge/security-focused-green.svg)](docs/security.md)
+  <br/>
 
-A Rust CLI tool that recursively discovers Git repositories, captures state changes, generates diffs, extracts code elements with full snippets, and produces security-focused reports for code review and audit workflows.
+  [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![Security](https://img.shields.io/badge/security-focused-green.svg)](docs/security.md)
+
+  <p><b>A Rust CLI tool that recursively discovers Git repositories, captures state changes, generates diffs, extracts code elements with full snippets, and produces security-focused reports for code review and audit workflows.</b></p>
+</div>
+
+<br/>
 
 ## 🎯 Key Features
 

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 250" width="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <style>
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(30px); opacity: 0; }
+      20% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { transform: translateY(-30px); opacity: 0; }
+    }
+    @keyframes slideRight {
+      0% { transform: translateX(-20px); opacity: 0; }
+      50% { opacity: 1; }
+      100% { transform: translateX(20px); opacity: 0; }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    
+    .bg-rect { fill: url(#bg); rx: 16; }
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 64px; font-weight: 800; fill: url(#textGrad); filter: url(#glow); }
+    .subtitle { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 16px; fill: #94a3b8; }
+    
+    .plus { fill: #10b981; font-family: monospace; font-size: 18px; font-weight: bold; }
+    .minus { fill: #ef4444; font-family: monospace; font-size: 18px; font-weight: bold; }
+    
+    .anim-float-1 { animation: floatUp 4s infinite linear; }
+    .anim-float-2 { animation: floatUp 5s infinite linear 1s; }
+    .anim-float-3 { animation: floatUp 3.5s infinite linear 2s; }
+    .anim-float-4 { animation: floatUp 4.5s infinite linear 0.5s; }
+    
+    .anim-pulse { animation: pulse 3s infinite ease-in-out; transform-origin: center; }
+    .anim-blink { animation: blink 2s infinite ease-in-out; }
+  </style>
+
+  <rect width="800" height="250" class="bg-rect"/>
+  
+  <g transform="translate(80, 125)">
+    <text x="-40" y="0" class="plus anim-float-1">+ pub fn new()</text>
+    <text x="-20" y="-20" class="minus anim-float-2">- let x = 0;</text>
+    <text x="-30" y="20" class="plus anim-float-3">+ #[derive(Debug)]</text>
+  </g>
+
+  <g transform="translate(600, 125)">
+    <text x="-10" y="10" class="minus anim-float-4">- panic!("TODO")</text>
+    <text x="10" y="-30" class="plus anim-float-1">+ Ok(report)</text>
+    <text x="0" y="30" class="plus anim-float-2">+ tag: "SQLi"</text>
+  </g>
+
+  <g transform="translate(400, 120)" text-anchor="middle">
+    <g class="anim-pulse" transform="translate(0, -30)">
+      <circle cx="-25" cy="-5" r="12" fill="none" stroke="#3b82f6" stroke-width="4"/>
+      <line x1="-15" y1="5" x2="-5" y2="15" stroke="#3b82f6" stroke-width="4" stroke-linecap="round"/>
+      <path d="M 5 -10 L 25 -10 L 15 10 Z" fill="#ec4899" opacity="0.8"/>
+    </g>
+    <text class="title" y="40">DiffCatcher</text>
+    <text class="subtitle" y="70">Recursive Git state <tspan class="anim-blink">|</tspan> Code diff engine</text>
+  </g>
+</svg>
