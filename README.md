@@ -43,6 +43,13 @@ _Scan the QR code or copy the wallet address above._
 - **Branch-Diff Mode**: Diff any two refs (branches, tags, commits) in a single repo — ideal for PR reviews
 - **Performance**: Parallel processing with progress bars, LRU caching, and incremental mode
 
+> **Why not just use bash?**
+> 
+> A one-liner like `ls | while read line; do git -C "$line" diff HEAD~1 HEAD || true; done` only shows raw diffs.
+> DiffCatcher adds recursive discovery, code element extraction, security pattern detection,
+> SARIF output for CI/CD, parallel processing, and cross-repo security aggregation.
+> See [full comparison](#bash-comparison) below.
+
 ## 📋 Table of Contents
 
 - [Installation](#installation)
@@ -354,6 +361,33 @@ src/
     ├── markdown.rs     # Markdown formatting
     └── snippet_writer.rs
 ```
+
+## Bash Comparison
+
+A simple bash one-liner can list diffs:
+
+```bash
+ls | while read line; do git -C "$line" diff HEAD~1 HEAD || true; done
+```
+
+This works for quick checks, but DiffCatcher adds significant capabilities:
+
+| Capability | Bash One-Liner | DiffCatcher |
+|------------|----------------|-------------|
+| **Recursive discovery** | Top-level items only | Nested repos, symlinks, filters |
+| **State tracking** | None | Commit hashes, dirty detection, pull logs |
+| **Code understanding** | Raw diff only | Extracts functions/structs/classes across 10+ languages |
+| **Code snippets** | None | Full before/after with context windows |
+| **Security analysis** | None | 18 built-in patterns (auth, crypto, secrets, SQLi, XSS) |
+| **Output formats** | Terminal only | JSON, Markdown, **SARIF** (GitHub Code Scanning) |
+| **Cross-repo view** | Per-repo only | Aggregated security report across all repos |
+| **Performance** | Sequential | Parallel workers, LRU caching, incremental mode |
+| **CI/CD integration** | None | SARIF upload to GitHub/Azure DevOps |
+| **Error handling** | `|| true` suppression | Proper error handling with detailed logging |
+| **Path handling** | Fails on spaces | Handles all path names correctly |
+| **Historical context** | Fixed `HEAD~1` | Configurable depth, state tracking |
+
+**The bash one-liner is ~100 bytes. DiffCatcher is a security-focused audit tool with full code element extraction.**
 
 ## 🧪 Testing
 
