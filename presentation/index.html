@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DiffCatcher – Recursive Git Security Diff Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #060b18;
+      --surface: #0d1628;
+      --surface2: #111d33;
+      --border: rgba(59,130,246,0.15);
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+      --pink: #ec4899;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --caption: #94a3b8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ─── ANIMATED BACKGROUND ─── */
+    .starfield {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .starfield::before, .starfield::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 50% 70%, rgba(255,255,255,0.2) 0%, transparent 100%),
+        radial-gradient(1px 1px at 10% 90%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.2) 0%, transparent 100%),
+        radial-gradient(1px 1px at 35% 50%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 65% 80%, rgba(255,255,255,0.3) 0%, transparent 100%);
+      background-size: 400px 400px;
+      animation: stardrift 60s linear infinite;
+    }
+    .starfield::after {
+      background-size: 600px 600px;
+      animation-duration: 90s;
+      animation-direction: reverse;
+    }
+
+    @keyframes stardrift {
+      from { transform: translateY(0); }
+      to { transform: translateY(-400px); }
+    }
+
+    /* ─── LAYOUT ─── */
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      text-align: center;
+      padding: 100px 0 60px;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(59,130,246,0.12);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 999px;
+      padding: 6px 18px;
+      font-size: 13px;
+      color: var(--blue);
+      font-weight: 500;
+      margin-bottom: 32px;
+      animation: fadeSlideDown 0.6s ease both;
+    }
+
+    .hero-badge .dot {
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: blink 2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+      50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+    }
+
+    .hero-title {
+      font-size: clamp(52px, 10vw, 88px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -3px;
+      background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 50%, var(--pink) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: fadeSlideDown 0.7s ease 0.1s both;
+      filter: drop-shadow(0 0 60px rgba(139,92,246,0.4));
+    }
+
+    .hero-subtitle {
+      font-size: clamp(16px, 2.5vw, 22px);
+      color: var(--caption);
+      margin-top: 20px;
+      font-weight: 400;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.6;
+      animation: fadeSlideDown 0.7s ease 0.2s both;
+    }
+
+    .hero-tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 32px;
+      animation: fadeSlideDown 0.7s ease 0.3s both;
+    }
+
+    .tag {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--caption);
+    }
+
+    .hero-cta {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 48px;
+      flex-wrap: wrap;
+      animation: fadeSlideDown 0.7s ease 0.4s both;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 14px;
+      padding: 14px 28px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      color: white;
+      box-shadow: 0 0 30px rgba(139,92,246, 0.35);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 50px rgba(139,92,246, 0.5);
+    }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+    }
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-2px);
+    }
+
+    @keyframes fadeSlideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── PROBLEM / SOLUTION ─── */
+    .section {
+      margin-top: 100px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--purple);
+      margin-bottom: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .section-desc {
+      color: var(--caption);
+      font-size: 17px;
+      max-width: 600px;
+      line-height: 1.7;
+    }
+
+    /* ─── PROBLEM CARDS ─── */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 40px;
+    }
+
+    @media (max-width: 640px) {
+      .problem-grid { grid-template-columns: 1fr; }
+    }
+
+    .problem-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      display: flex;
+      gap: 16px;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .problem-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(139,92,246,0.3);
+    }
+
+    .problem-card .icon {
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+
+    .problem-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .problem-card p {
+      font-size: 14px;
+      color: var(--caption);
+      line-height: 1.6;
+    }
+
+    /* ─── FEATURE SHOWCASE ─── */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 48px;
+    }
+
+    @media (max-width: 768px) {
+      .features { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .features { grid-template-columns: 1fr; }
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s ease;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(139,92,246,0.08), transparent 60%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(139,92,246,0.25);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      font-size: 13.5px;
+      color: var(--caption);
+      line-height: 1.6;
+    }
+
+    .feat-pill {
+      display: inline-block;
+      background: rgba(16,185,129,0.12);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 99px;
+      margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ─── TERMINAL DEMO ─── */
+    .terminal-wrap {
+      margin-top: 48px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 30px 100px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .terminal-bar {
+      background: #1c2333;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .terminal-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+    }
+    .td-red { background: #ff5f57; }
+    .td-yellow { background: #febc2e; }
+    .td-green { background: #28c840; }
+
+    .terminal-title {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      margin-left: 8px;
+    }
+
+    .terminal-body {
+      background: #0a0f1e;
+      padding: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      line-height: 2;
+      overflow-x: auto;
+    }
+
+    .t-prompt { color: var(--blue); }
+    .t-cmd { color: var(--text); }
+    .t-arg { color: var(--purple); }
+    .t-flag { color: var(--yellow); }
+    .t-comment { color: var(--muted); }
+    .t-plus { color: var(--green); }
+    .t-minus { color: var(--red); }
+    .t-path { color: var(--pink); }
+    .t-tag { color: var(--yellow); }
+    .t-number { color: var(--yellow); }
+    .t-section { color: var(--purple); font-weight: 700; }
+    .t-ok { color: var(--green); }
+    /* ─── FLOW DIAGRAM ─── */
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin-top: 48px;
+      /* Break out of wrapper padding to get full available width */
+      margin-left: -24px;
+      margin-right: -24px;
+      padding-left: 24px;
+      padding-right: 24px;
+      overflow-x: auto;
+    }
+
+    .flow-col {
+      display: flex;
+      align-items: center;
+    }
+
+    .flow-col.step {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .flow-col.arrow {
+      flex-shrink: 0;
+      padding: 0 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .flow-step {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 4px;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .flow-step:hover {
+      border-color: rgba(139,92,246,0.4);
+      transform: scale(1.04);
+    }
+
+    .flow-step-icon {
+      font-size: 18px;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .flow-step h4 {
+      font-size: 10px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .flow-step p {
+      font-size: 9px;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+
+
+
+    @media (max-width: 680px) {
+      .flow {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      .flow-col.arrow { display: none; }
+      .flow-col.step { flex: unset; }
+    }
+    @media (max-width: 420px) {
+      .flow { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ─── DONATION SECTION ─── */
+    .donation-card {
+      background: var(--surface2);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 24px;
+      padding: 48px;
+      margin-top: 80px;
+      display: flex;
+      align-items: center;
+      gap: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .donation-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 80% 50%, rgba(139,92,246,0.1), transparent 60%),
+                  radial-gradient(circle at 20% 50%, rgba(59,130,246,0.08), transparent 60%);
+      pointer-events: none;
+    }
+
+    .donation-qr {
+      flex-shrink: 0;
+      width: 160px;
+      height: 160px;
+      background: white;
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 0 1px rgba(139,92,246,0.3),
+                  0 0 40px rgba(139,92,246,0.2);
+    }
+
+    .donation-qr svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .donation-qr img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 4px;
+    }
+
+    .donation-content {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+    }
+
+    .donation-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--purple);
+      margin-bottom: 10px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .donation-title {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+
+    .donation-title .eth-gradient {
+      background: linear-gradient(135deg, #627eea, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .donation-desc {
+      color: var(--caption);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .donation-address {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text);
+      word-break: break-all;
+      flex-wrap: wrap;
+    }
+
+    .donation-address .eth-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .copy-btn {
+      margin-left: auto;
+      flex-shrink: 0;
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: var(--purple);
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .copy-btn:hover {
+      background: rgba(139,92,246,0.25);
+      transform: scale(1.04);
+    }
+    .copy-btn.copied {
+      color: var(--green);
+      border-color: rgba(16,185,129,0.4);
+      background: rgba(16,185,129,0.1);
+    }
+
+    @media (max-width: 640px) {
+      .donation-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 32px 24px;
+        gap: 28px;
+      }
+      .donation-address { justify-content: center; }
+      .copy-btn { margin-left: 0; }
+    }
+
+
+    /* ─── SECURITY PATTERNS ─── */
+    .security-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 40px;
+    }
+
+    .sec-tag {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .sec-tag:hover {
+      transform: translateY(-3px);
+      border-color: rgba(239,68,68,0.4);
+      background: rgba(239,68,68,0.06);
+    }
+
+    .sec-tag .sev {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 6px;
+    }
+    .sev.crit { color: var(--red); }
+    .sev.high { color: var(--yellow); }
+    .sev.med  { color: var(--blue); }
+
+    .sec-tag .name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* ─── STATS ─── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 48px;
+    }
+
+    @media (max-width: 600px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 20px;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .stat-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(59,130,246,0.3);
+    }
+
+    .stat-number {
+      font-size: 42px;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--caption);
+    }
+
+    /* ─── CODE SAMPLE (REPORT STRUCTURE) ─── */
+    .code-block {
+      background: #080d1a;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 20px;
+      padding: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.9;
+      overflow-x: auto;
+      margin-top: 40px;
+    }
+
+    .c-dir   { color: var(--blue); }
+    .c-file  { color: var(--text); }
+    .c-note  { color: var(--muted); font-style: italic; }
+    .c-snip  { color: var(--pink); }
+
+    /* ─── INSTALL CARD ─── */
+    .install-card {
+      background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08));
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 24px;
+      padding: 48px;
+      text-align: center;
+      margin-top: 100px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .install-card::before {
+      content: '';
+      position: absolute;
+      top: -100px; left: 50%;
+      transform: translateX(-50%);
+      width: 400px; height: 300px;
+      background: radial-gradient(ellipse, rgba(139,92,246,0.15), transparent 70%);
+    }
+
+    .install-card h2 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .install-card p {
+      color: var(--caption);
+      margin-bottom: 28px;
+      font-size: 16px;
+    }
+
+    .install-cmd {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 14px 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+    }
+
+    /* ─── DIVIDER ─── */
+    .divider {
+      width: 60px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+      border-radius: 99px;
+      margin: 16px 0 24px;
+    }
+
+    /* ─── FOOTER ─── */
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 80px;
+      padding-top: 40px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .footer a { color: var(--blue); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* ─── SCROLL ANIMATIONS ─── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ─── GLOWING ORBS ─── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.35;
+    }
+    .orb-1 { width: 600px; height: 600px; background: var(--purple); top: -200px; left: -200px; animation: orbFloat1 18s ease-in-out infinite; }
+    .orb-2 { width: 500px; height: 500px; background: var(--blue); bottom: 0; right: -100px; animation: orbFloat2 22s ease-in-out infinite; }
+    .orb-3 { width: 300px; height: 300px; background: var(--pink); top: 50%; left: 50%; animation: orbFloat3 15s ease-in-out infinite; }
+
+    @keyframes orbFloat1 {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(80px, 60px); }
+    }
+    @keyframes orbFloat2 {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(-60px, -80px); }
+    }
+    @keyframes orbFloat3 {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.2); }
+    }
+
+    /* ─── DIFF PREVIEW ─── */
+    .diff-preview {
+      border-radius: 20px;
+      overflow: hidden;
+      margin-top: 40px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 20px 80px rgba(0,0,0,0.4);
+    }
+
+    .diff-header {
+      background: #131b2e;
+      padding: 12px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 16px;
+    }
+
+    .diff-body {
+      background: #080c18;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .diff-line {
+      display: flex;
+      align-items: baseline;
+      padding: 2px 0;
+    }
+
+    .diff-line-num {
+      width: 48px;
+      text-align: right;
+      color: var(--muted);
+      padding-right: 16px;
+      font-size: 11px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .diff-line-content {
+      padding: 1px 20px;
+      flex: 1;
+    }
+
+    .diff-add { background: rgba(16,185,129,0.08); }
+    .diff-add .diff-line-content { color: var(--green); }
+    .diff-rem { background: rgba(239,68,68,0.08); }
+    .diff-rem .diff-line-content { color: var(--red); }
+    .diff-ctx .diff-line-content { color: var(--caption); }
+
+    /* ─── SARIF BADGE ─── */
+    .integrations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .integration-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .integration-badge:hover {
+      transform: translateY(-2px);
+      border-color: rgba(59,130,246,0.3);
+    }
+    .integration-badge .ib-icon { font-size: 20px; }
+  </style>
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="starfield"></div>
+
+  <div class="wrapper">
+
+    <!-- ─── HERO ─── -->
+    <section class="hero">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Open Source &nbsp;·&nbsp; Rust &nbsp;·&nbsp; MIT License
+      </div>
+
+      <h1 class="hero-title">DiffCatcher</h1>
+
+      <p class="hero-subtitle">
+        A Rust CLI that <strong style="color:var(--text)">recursively scans Git repos</strong>,
+        captures state changes, generates diffs, extracts code elements, and produces
+        <strong style="color:var(--text)">security-focused reports</strong> — all in one command.
+      </p>
+
+      <div class="hero-tags">
+        <span class="tag">#rust</span>
+        <span class="tag">#git</span>
+        <span class="tag">#security</span>
+        <span class="tag">#code-review</span>
+        <span class="tag">#diff-analysis</span>
+        <span class="tag">#static-analysis</span>
+        <span class="tag">#devops</span>
+        <span class="tag">#cli-tool</span>
+        <span class="tag">#audit</span>
+      </div>
+
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="https://github.com/Teycir/DiffCatcher">
+          ⭐ Star on GitHub
+        </a>
+        <a class="btn btn-ghost" href="#install">
+          🚀 Quick Install
+        </a>
+      </div>
+    </section>
+
+    <!-- ─── STATS ─── -->
+    <section class="section reveal">
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-number">18+</div>
+          <div class="stat-label">Built-in Security<br>Patterns</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">10+</div>
+          <div class="stat-label">Supported<br>Languages</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">4</div>
+          <div class="stat-label">Report Formats<br>(JSON, MD, TXT, SARIF)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">∞</div>
+          <div class="stat-label">Repos Scanned<br>in Parallel</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── THE PROBLEM ─── -->
+    <section class="section reveal">
+      <div class="section-label">The Problem</div>
+      <div class="divider"></div>
+      <h2 class="section-title">Monitoring many repos is<br><span style="color:var(--red)">painful &amp; error-prone</span></h2>
+      <p class="section-desc">
+        When you manage dozens of Git repositories, keeping track of what changed, what's security-relevant, and generating reviews manually is an endless chore.
+      </p>
+
+      <div class="problem-grid">
+        <div class="problem-card">
+          <span class="icon">😩</span>
+          <div>
+            <h3>Manual diffs everywhere</h3>
+            <p>Running <code style="color:var(--pink)">git pull && git diff</code> across 30 repos by hand wastes hours and misses things.</p>
+          </div>
+        </div>
+        <div class="problem-card">
+          <span class="icon">🔍</span>
+          <div>
+            <h3>No cross-repo visibility</h3>
+            <p>Security issues like hardcoded secrets or SQL injections scattered across repos go unnoticed.</p>
+          </div>
+        </div>
+        <div class="problem-card">
+          <span class="icon">📊</span>
+          <div>
+            <h3>No structured reports</h3>
+            <p>Raw patches are hard to read, impossible to pipe into CI/CD, and don't highlight what matters.</p>
+          </div>
+        </div>
+        <div class="problem-card">
+          <span class="icon">🛡️</span>
+          <div>
+            <h3>Security reviews are slow</h3>
+            <p>Code auditors need to manually identify which changed functions touch crypto, auth, or secrets.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── SOLUTION FLOW ─── -->
+    <section class="section reveal">
+      <div class="section-label">How It Works</div>
+      <div class="divider"></div>
+      <h2 class="section-title">One command.<br><span style="background: linear-gradient(90deg, var(--blue), var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">Everything automated.</span></h2>
+
+      <div class="flow">
+        <div class="flow-col step">
+          <div class="flow-step">
+            <span class="flow-step-icon">📂</span>
+            <h4>Discover</h4>
+            <p>Recursive repo scanning</p>
+          </div>
+        </div>
+        <div class="flow-col arrow">→</div>
+        <div class="flow-col step">
+          <div class="flow-step">
+            <span class="flow-step-icon">⬇️</span>
+            <h4>Fetch / Pull</h4>
+            <p>Safe state capture</p>
+          </div>
+        </div>
+        <div class="flow-col arrow">→</div>
+        <div class="flow-col step">
+          <div class="flow-step">
+            <span class="flow-step-icon">🔀</span>
+            <h4>Diff</h4>
+            <p>N vs N-1 unified diff</p>
+          </div>
+        </div>
+        <div class="flow-col arrow">→</div>
+        <div class="flow-col step">
+          <div class="flow-step">
+            <span class="flow-step-icon">🧩</span>
+            <h4>Extract</h4>
+            <p>Functions, types, imports</p>
+          </div>
+        </div>
+        <div class="flow-col arrow">→</div>
+        <div class="flow-col step">
+          <div class="flow-step">
+            <span class="flow-step-icon">🚨</span>
+            <h4>Tag</h4>
+            <p>Security pattern match</p>
+          </div>
+        </div>
+        <div class="flow-col arrow">→</div>
+        <div class="flow-col step">
+          <div class="flow-step">
+            <span class="flow-step-icon">📋</span>
+            <h4>Report</h4>
+            <p>JSON / MD / SARIF</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── TERMINAL ─── -->
+    <section class="section reveal">
+      <div class="section-label">Quick Start</div>
+      <div class="divider"></div>
+      <h2 class="section-title">Zero setup.<br>Instant results.</h2>
+
+      <div class="terminal-wrap">
+        <div class="terminal-bar">
+          <div class="terminal-dot td-red"></div>
+          <div class="terminal-dot td-yellow"></div>
+          <div class="terminal-dot td-green"></div>
+          <span class="terminal-title">bash — 80×24</span>
+        </div>
+        <div class="terminal-body">
+          <div><span class="t-comment"># Scan ALL repos under ~/projects — fetch-only, safe.</span></div>
+          <div><span class="t-prompt">$ </span><span class="t-cmd">diffcatcher</span> <span class="t-arg">~/projects</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-comment"># Pull updates + full security report in one shot</span></div>
+          <div><span class="t-prompt">$ </span><span class="t-cmd">diffcatcher</span> <span class="t-arg">~/projects</span> <span class="t-flag">--pull</span> <span class="t-flag">-o</span> <span class="t-arg">./report</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-comment"># PR review mode — diff two branches in a single repo</span></div>
+          <div><span class="t-prompt">$ </span><span class="t-cmd">diffcatcher</span> <span class="t-arg">./my-repo</span> <span class="t-flag">--diff</span> <span class="t-arg">main..feature/auth</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-comment"># SARIF output — upload straight to GitHub Code Scanning</span></div>
+          <div><span class="t-prompt">$ </span><span class="t-cmd">diffcatcher</span> <span class="t-arg">~/projects</span> <span class="t-flag">--summary-format</span> <span class="t-arg">sarif,json</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-comment"># Crank up parallelism for large monorepos</span></div>
+          <div><span class="t-prompt">$ </span><span class="t-cmd">diffcatcher</span> <span class="t-arg">~/projects</span> <span class="t-flag">-j</span> <span class="t-number">8</span> <span class="t-flag">--quiet</span></div>
+          <div>&nbsp;</div>
+          <div>
+            <span class="t-ok">✓</span> <span style="color:var(--text)">Found 12 repos</span>
+            &nbsp;&nbsp;<span class="t-ok">✓</span> <span style="color:var(--text)">167 elements extracted</span>
+            &nbsp;&nbsp;<span class="t-ok">✓</span> <span style="color:var(--text)">23 security tags</span>
+          </div>
+          <div><span class="t-section">→</span> <span class="t-path">./report/security_overview.md</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── FEATURES ─── -->
+    <section class="section reveal">
+      <div class="section-label">Features</div>
+      <div class="divider"></div>
+      <h2 class="section-title">Everything a code auditor<br>could want.</h2>
+
+      <div class="features">
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(59,130,246,0.1);">📂</div>
+          <h3>Recursive Repo Discovery</h3>
+          <p>Auto-find all Git repos in any directory tree. Configurable filters, depth limits, symlink following.</p>
+          <span class="feat-pill">--nested --follow-symlinks</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(16,185,129,0.1);">🔀</div>
+          <h3>Smart Diff Engine</h3>
+          <p>N vs N-1 diffs with historical depth config. Full unified patch files + file manifests per repo.</p>
+          <span class="feat-pill">--history-depth 5</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(139,92,246,0.1);">🧩</div>
+          <h3>Code Element Extraction</h3>
+          <p>Identifies functions, structs, classes, imports + more across 10+ languages with full snippets.</p>
+          <span class="feat-pill">10+ languages</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(239,68,68,0.1);">🚨</div>
+          <h3>Security Pattern Tagging</h3>
+          <p>18 built-in patterns: crypto, auth, secrets, SQL injection, XSS, path traversal, and more.</p>
+          <span class="feat-pill">18 built-in tags</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(236,72,153,0.1);">📋</div>
+          <h3>Multi-Format Reports</h3>
+          <p>JSON, Markdown, plain text, and SARIF 2.1.0 output. Cross-repo security aggregation built-in.</p>
+          <span class="feat-pill">SARIF · JSON · MD</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(245,158,11,0.1);">⚡</div>
+          <h3>Parallel Processing</h3>
+          <p>Configurable thread pool, LRU caching, incremental mode — blazing fast even at scale.</p>
+          <span class="feat-pill">-j 8 --incremental</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(59,130,246,0.1);">🌿</div>
+          <h3>Branch-Diff / PR Mode</h3>
+          <p>Diff any two refs without touching the working tree. Perfect for PR reviews before merging.</p>
+          <span class="feat-pill">--diff main..feature</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(16,185,129,0.1);">🔌</div>
+          <h3>Plugin System</h3>
+          <p>Extend security patterns and element extractors via JSON plugins without touching source.</p>
+          <span class="feat-pill">--security-plugin-file</span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(139,92,246,0.1);">⚙️</div>
+          <h3>Config File Support</h3>
+          <p>Drop a <code style="color:var(--pink)">.diffcatcher.toml</code> in your project. CLI flags always override config values.</p>
+          <span class="feat-pill">.diffcatcher.toml</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── DIFF PREVIEW ─── -->
+    <section class="section reveal">
+      <div class="section-label">Snippet Extraction</div>
+      <div class="divider"></div>
+      <h2 class="section-title">Full code context,<br>not just line numbers.</h2>
+      <p class="section-desc">
+        DiffCatcher extracts the complete before/after source of every changed function — boundaries detected,
+        context preserved. Security-tagged elements are flagged immediately.
+      </p>
+
+      <div class="diff-preview">
+        <div class="diff-header">
+          <span>📄 snippets / 002_validate_token_BEFORE.rs → AFTER.rs</span>
+          <span style="margin-left:auto; color: var(--red)">⚠ security: auth, crypto</span>
+        </div>
+        <div class="diff-body">
+          <div class="diff-line diff-ctx">
+            <span class="diff-line-num">12</span>
+            <span class="diff-line-content">fn validate_token(token: &amp;str) -&gt; Result&lt;Claims, Error&gt; {</span>
+          </div>
+          <div class="diff-line diff-rem">
+            <span class="diff-line-num">13</span>
+            <span class="diff-line-content">-    let secret = "hardcoded_secret_123";</span>
+          </div>
+          <div class="diff-line diff-add">
+            <span class="diff-line-num">13</span>
+            <span class="diff-line-content">+    let secret = env::var("JWT_SECRET")?;</span>
+          </div>
+          <div class="diff-line diff-rem">
+            <span class="diff-line-num">14</span>
+            <span class="diff-line-content">-    decode::&lt;Claims&gt;(token, &amp;DecodingKey::from_secret(secret.as_ref()), &amp;Validation::default())</span>
+          </div>
+          <div class="diff-line diff-add">
+            <span class="diff-line-num">14</span>
+            <span class="diff-line-content">+    let validation = Validation::new(Algorithm::RS256);</span>
+          </div>
+          <div class="diff-line diff-add">
+            <span class="diff-line-num">15</span>
+            <span class="diff-line-content">+    decode::&lt;Claims&gt;(token, &amp;DecodingKey::from_secret(secret.as_bytes()), &amp;validation)</span>
+          </div>
+          <div class="diff-line diff-ctx">
+            <span class="diff-line-num">16</span>
+            <span class="diff-line-content">}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── SECURITY PATTERNS ─── -->
+    <section class="section reveal">
+      <div class="section-label">Security Tagging</div>
+      <div class="divider"></div>
+      <h2 class="section-title">18 patterns. Zero<br>configuration needed.</h2>
+      <p class="section-desc">
+        Every changed element is automatically checked against built-in security patterns. Custom plugins let you add domain-specific rules.
+      </p>
+
+      <div class="security-grid">
+        <div class="sec-tag"><div class="sev crit">Critical</div><div class="name">🔐 Secrets</div></div>
+        <div class="sec-tag"><div class="sev crit">Critical</div><div class="name">💉 SQL Injection</div></div>
+        <div class="sec-tag"><div class="sev crit">Critical</div><div class="name">🗂️ Path Traversal</div></div>
+        <div class="sec-tag"><div class="sev high">High</div><div class="name">🔑 Auth</div></div>
+        <div class="sec-tag"><div class="sev high">High</div><div class="name">🔒 Cryptography</div></div>
+        <div class="sec-tag"><div class="sev high">High</div><div class="name">🌐 XSS</div></div>
+        <div class="sec-tag"><div class="sev high">High</div><div class="name">🛂 Access Control</div></div>
+        <div class="sec-tag"><div class="sev high">High</div><div class="name">🌊 SSRF</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">📡 Network</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">📝 Logging</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">🗄️ Database</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">📤 Deserialization</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">⚙️ Config</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">🐚 Command Exec</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">📁 File System</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">💾 Memory Mgmt</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">🧵 Race Condition</div></div>
+        <div class="sec-tag"><div class="sev med">Medium</div><div class="name">🔌 Injection</div></div>
+      </div>
+    </section>
+
+    <!-- ─── REPORT STRUCTURE ─── -->
+    <section class="section reveal">
+      <div class="section-label">Output</div>
+      <div class="divider"></div>
+      <h2 class="section-title">Structured output your<br>CI/CD pipeline can consume.</h2>
+
+      <div class="code-block">
+        <div><span class="c-dir">report/</span></div>
+        <div>├── <span class="c-file">summary.json</span>           <span class="c-note">  # Global cross-repo summary</span></div>
+        <div>├── <span class="c-file">summary.md</span>             <span class="c-note">  # Human-readable overview</span></div>
+        <div>├── <span class="c-file">results.sarif</span>          <span class="c-note">  # SARIF 2.1.0 — GitHub Code Scanning ready</span></div>
+        <div>├── <span class="c-file">security_overview.json</span> <span class="c-note">  # All security findings, aggregated</span></div>
+        <div>├── <span class="c-file">security_overview.md</span></div>
+        <div>└── <span class="c-dir">my-repo/</span></div>
+        <div>    ├── <span class="c-file">status.json</span>         <span class="c-note">  # Commit hashes, dirty state</span></div>
+        <div>    └── <span class="c-dir">diffs/</span></div>
+        <div>        ├── <span class="c-file">diff_N_vs_N-1.patch</span></div>
+        <div>        ├── <span class="c-file">summary_N_vs_N-1.json</span> <span class="c-note"># Extracted elements</span></div>
+        <div>        └── <span class="c-dir">snippets/</span></div>
+        <div>            ├── <span class="c-snip">001_validate_token_ADDED.rs</span></div>
+        <div>            ├── <span class="c-snip">002_check_perms_BEFORE.rs</span></div>
+        <div>            ├── <span class="c-snip">002_check_perms_AFTER.rs</span></div>
+        <div>            └── <span class="c-snip">002_check_perms.diff</span></div>
+      </div>
+
+      <div class="integrations" style="margin-top:32px;">
+        <div class="integration-badge">
+          <span class="ib-icon">🐙</span> GitHub Code Scanning
+        </div>
+        <div class="integration-badge">
+          <span class="ib-icon">🔵</span> Azure DevOps
+        </div>
+        <div class="integration-badge">
+          <span class="ib-icon">🟠</span> GitLab CI
+        </div>
+        <div class="integration-badge">
+          <span class="ib-icon">💻</span> VS Code SARIF Viewer
+        </div>
+        <div class="integration-badge">
+          <span class="ib-icon">⚙️</span> Any CI/CD via JSON
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── INSTALL ─── -->
+    <div class="install-card reveal" id="install">
+      <h2>Get started in 30 seconds</h2>
+      <p>Rust + Git is all you need. No runtime dependencies.</p>
+
+      <div class="install-cmd">
+        <span style="color:var(--muted)">$</span>
+        <span style="color:var(--blue)">git clone</span>
+        <span style="color:var(--text)">https://github.com/Teycir/DiffCatcher.git</span>
+        <span style="color:var(--muted)">&amp;&amp;</span>
+        <span style="color:var(--blue)">cargo build</span>
+        <span style="color:var(--purple)">--release</span>
+      </div>
+
+      <div style="margin-top:32px;">
+        <a class="btn btn-primary" href="https://github.com/Teycir/DiffCatcher" style="text-decoration:none; display:inline-flex;">
+          ⭐ Star on GitHub
+        </a>
+      </div>
+    </div>
+
+    <!-- ─── DONATION ─── -->
+    <div class="donation-card reveal">
+      <div class="donation-qr" title="Ethereum donation QR code">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 31 31">
+          <path d="M1 1h7v7h-7zM9 1h1v2h-1zM11 1h3v1h-1v1h-2zM15 1h1v1h-1zM18 1h1v2h-1v1h2v1h1v-1h-1v-1h1v-1h1v4h-1v1h-1v-1h-2v-1h-1v1h-1v-3h1v-1h1zM20 1h1v1h-1zM23 1h7v7h-7zM2 2v5h5v-5zM14 2h1v5h-1v1h-1v-1h-1v1h-1v-1h-1v-2h1v1h1v-1h1v-2h1zM24 2v5h5v-5zM3 3h3v3h-3zM10 3h1v1h-1zM25 3h3v3h-3zM9 4h1v1h-1zM11 4h1v1h-1zM9 7h1v2h-1zM15 7h1v2h-1zM17 7h1v1h-1zM19 7h1v1h-1zM21 7h1v2h-1v1h-1v2h1v1h1v3h-1v1h-1v-2h-1v1h-1v-1h-1v-1h1v-1h1v-1h-1v1h-1v-2h2v-1h-1v-2h1v1h1v-1h1zM1 9h1v1h-1zM3 9h2v1h-2zM6 9h3v1h2v1h1v-2h2v1h-1v1h2v3h-1v-1h-2v-1h-1v1h1v2h-1v1h2v2h-1v-1h-2v1h-1v-2h-2v1h1v1h-2v-1h-1v1h1v1h-1v2h-1v1h-2v-1h1v-1h1v-2h-1v-1h1v-1h2v-1h-1v-1h1v-2h1v1h1v-1h1v-1h-1v-1h-1v1h-1zM23 9h1v2h-1zM26 9h1v1h-1zM28 9h2v2h-1v-1h-1zM15 10h1v1h-1zM21 10h1v1h1v1h-2zM25 10h1v1h2v1h-1v1h1v-1h2v1h-1v1h1v2h-1v-1h-1v1h-2v1h1v1h2v1h-3v-1h-1v-1h-3v-1h1v-1h1v-2h1v2h2v-1h-1v-2h-2v-1h1zM1 11h2v1h1v1h-2v1h2v1h-1v2h-1v-2h-1zM4 11h2v1h-2zM7 11h1v1h-1zM16 13h1v1h-1zM7 14v1h1v-1zM13 14h1v1h-1zM14 15h2v1h1v1h-1v1h1v3h-2v-1h1v-1h-1v-1h-1v-1h1v-1h-1zM28 16h1v1h-1zM21 17h1v1h1v2h1v1h2v5h1v-1h3v3h-1v-2h-1v1h-3v-1h-4v-1h-2v-1h1v-3h1v-1h1v-1h-1zM29 17h1v1h-1zM8 18h1v1h-1zM10 18h2v2h2v3h1v-1h1v2h-1v1h-1v-1h-2v-1h1v-2h-1v1h-2v1h1v2h-2v-3h-2v-1h4v-1h-2v-1h1zM13 18h1v1h-1zM19 18h1v2h-1v2h-1v-3h1zM1 19h1v1h-1zM6 19h2v1h-2zM24 19h2v1h-2zM27 20h1v2h-1zM5 21h1v1h-1zM29 21h1v2h-1zM22 22v3h3v-3zM1 23h7v7h-7zM18 23h1v1h-1zM23 23h1v1h-1zM2 24v5h5v-5zM16 24h2v1h-1v1h-1zM3 25h3v3h-3zM12 25h2v1h2v1h-2v1h-2v-1h1v-1h-1zM18 25h1v3h-1v-1h-1v-1h1zM9 26h1v2h-1zM11 26h1v1h-1zM20 26h1v1h-1zM22 27h1v2h1v1h-3v-1h-2v-1h3zM14 28h1v2h-3v-1h2zM24 28h3v1h-3zM28 28h1v2h-2v-1h1zM9 29h1v1h-1zM17 29h1v1h-1z"/>
+        </svg>
+      </div>
+      <div class="donation-content">
+        <div class="donation-label">Support Development</div>
+        <h2 class="donation-title">Like DiffCatcher? <span class="eth-gradient">Buy me a coffee ☕</span></h2>
+        <p class="donation-desc">
+          DiffCatcher is free and open source. If it saves you time on code reviews or security audits,
+          consider supporting ongoing development and new features.
+        </p>
+        <div class="donation-address">
+          <span class="eth-icon">⧧</span>
+          <span>0x11282eE5726B3370c8B480e321b3B2aA13686582</span>
+          <button class="copy-btn" id="copyBtn" onclick="
+            navigator.clipboard.writeText('0x11282eE5726B3370c8B480e321b3B2aA13686582').then(()=>{
+              this.textContent='Copied ✓';
+              this.classList.add('copied');
+              setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000);
+            });
+          ">Copy</button>
+        </div>
+        <p style="margin-top:12px; font-size:12px; color:var(--muted);">ETH &amp; ERC-20 tokens accepted &nbsp;·&nbsp; <a href="https://etherscan.io/address/0x11282eE5726B3370c8B480e321b3B2aA13686582" style="color:var(--blue); text-decoration:none;" target="_blank">View on Etherscan ↗</a></p>
+      </div>
+    </div>
+
+    <!-- ─── FOOTER ─── -->
+    <footer class="footer">
+      <p>Built by <a href="https://teycirbensoltane.tn">Teycir Ben Soltane</a> &nbsp;·&nbsp;
+      MIT License &nbsp;·&nbsp;
+      <a href="https://github.com/Teycir/DiffCatcher">github.com/Teycir/DiffCatcher</a></p>
+      <p style="margin-top:8px; font-size:11px;">DiffCatcher — Recursive Git state · Code diff engine</p>
+    </footer>
+
+  </div><!-- /wrapper -->
+
+  <script>
+    // Scroll reveal
+    const reveals = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    reveals.forEach(el => io.observe(el));
+  </script>
+</body>
+</html>
