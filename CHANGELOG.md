@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improved changelog structure to include complete release notes and verified release metadata.
 
-## [0.1.0] - 2026-03-21
+## [0.1.0] - 2026-04-02
 
 ### Added
 
@@ -44,6 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Release Metadata
 
-- GitHub Releases endpoint currently reports no published releases.
-- Git tags endpoint currently reports no tags.
-- Latest repository push timestamp: `2026-03-21T19:59:50Z` (GitHub API `pushed_at` for `Teycir/DiffCatcher`).
+- GitHub Release published: `v0.1.0` at `2026-04-02T16:21:42Z`.
+- Git tag published: `v0.1.0`.
+- Latest repository push timestamp: `2026-04-02T16:20:53Z` (GitHub API `pushed_at` for `Teycir/DiffCatcher`).

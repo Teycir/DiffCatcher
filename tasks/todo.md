@@ -9,5 +9,6 @@
 ## Review
 
 - `CHANGELOG.md` now contains a complete initial release entry (`0.1.0`) and release metadata.
-- GitHub API currently returns no published releases and no tags for `Teycir/DiffCatcher`.
-- Latest repository push timestamp verified as `2026-03-21T19:59:50Z`.
+- Published GitHub Release: `v0.1.0` (`2026-04-02T16:21:42Z`).
+- Published git tag: `v0.1.0`.
+- Latest repository push timestamp verified as `2026-04-02T16:20:53Z`.
