@@ -46,4 +46,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - GitHub Release published: `v0.1.0` at `2026-04-02T16:21:42Z`.
 - Git tag published: `v0.1.0`.
-- Latest repository push timestamp: `2026-04-02T16:20:53Z` (GitHub API `pushed_at` for `Teycir/DiffCatcher`).
+- Repository push timestamp when `v0.1.0` was published: `2026-04-02T16:20:53Z` (GitHub API `pushed_at` for `Teycir/DiffCatcher`).
