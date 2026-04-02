@@ -12,3 +12,4 @@ Cargo.lock
 
 # Scripts
 /scripts/
+.codex
